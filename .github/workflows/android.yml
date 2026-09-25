@@ -127,8 +127,8 @@ jobs:
         if: failure()
         run: |
           # surface compiler / CMake errors as annotations (readable without signing in)
-          grep -E "^e: |error:|Error:|What went wrong|FAILED|CMake Error|undefined reference|Could not" build.log \
-            | grep -v "^\s*at " | head -40 | while IFS= read -r l; do echo "::error::${l:0:900}"; done || true
+          { grep -A 12 "What went wrong" build.log; grep -E "^e: |error:|CMake Error|undefined reference|ld.lld" build.log; } \
+            | grep -v "^\s*at \|^\s*$\|Try:\|Run with\|Get more help\|^> Run with" | head -45 | while IFS= read -r l; do echo "::error::${l:0:900}"; done || true
           tail -60 build.log
       - name: Collect APK
         run: |
