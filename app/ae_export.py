@@ -83,6 +83,7 @@ var DATA = __DATA__;
     var SPACE = m1.sourceRectAtTime(0, false).width - m2.sourceRectAtTime(0, false).width;
     if (!(SPACE > 0)) SPACE = FS * 0.28;
     SPACE += STROKE; if (S.highlight === "box") SPACE += (S.boxPad || 14) * K;
+    if (S.wordAnim !== "none") SPACE += FS * Math.max(0, (S.activeScale || 1.1) - 1) * 1.6;
     var capRect = (function () { var l = tmpComp.layers.addText("HX"); styleText(l, "HX", FS); return l.sourceRectAtTime(0, false); })();
     tmpComp.remove();
     var MID = capRect.top + capRect.height / 2;   // vertical centre of capitals relative to baseline

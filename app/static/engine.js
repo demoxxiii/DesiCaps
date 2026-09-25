@@ -91,6 +91,7 @@ const DC = (() => {
     const k = unit(W, H), fs = st.size * k;
     mctx.font = fontStr(st, fs);
     let space = mctx.measureText(" ").width + (st.stroke || 0) * k;
+    if ((st.wordAnim || "pop") !== "none") space += fs * Math.max(0, (+st.activeScale || 1.1) - 1) * 1.6;
     if (st.highlight === "box") space += (st.boxPad ?? 14) * k;
     const maxw = (st.maxWidth ?? 0.82) * W;
     const items = [];

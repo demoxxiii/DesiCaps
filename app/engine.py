@@ -175,6 +175,8 @@ def layout(words, page, style, W, H):
     fs = style["size"] * k
     f = font(style["font"], fs)
     space = f.getlength(" ") + style.get("stroke", 0) * k
+    if style.get("wordAnim", "pop") != "none":  # leave room for the active word's pop
+        space += fs * max(0.0, float(style.get("activeScale", 1.1)) - 1) * 1.6
     if style.get("highlight") == "box":
         space += style.get("boxPad", 14) * k
     maxw = style.get("maxWidth", 0.82) * W
