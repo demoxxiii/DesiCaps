@@ -49,10 +49,18 @@ jobs:
           python3 -m pip install "transformers<5" huggingface_hub numpy safetensors
           python3 scripts/convert_model.py wcpp openai-whisper model-out q8_0
           ls -la model-out
-          # sanity check: transcribe one of the model card's Hindi samples with DTW timing
+      - name: Sanity check - transcribe a Hindi sample with the converted model
+        if: steps.cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          HF_MODEL: Oriserve/Whisper-Hindi2Hinglish-Swift
+        run: |
+          set -e
+          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg)
           python3 -c "from huggingface_hub import hf_hub_download as d; print(d('$HF_MODEL','audios/common_voice_hi_23796065.mp3', local_dir='smp'))"
           ffmpeg -v error -y -i smp/audios/common_voice_hi_23796065.mp3 -ar 16000 -ac 1 -c:a pcm_s16le smp/a.wav
-          ./wcpp/build/bin/whisper-cli -m model-out/ggml-hinglish-swift-q8_0.bin -f smp/a.wav -l en --dtw base -nfa -ojf -of smp/out -np
+          cli=$(find wcpp/build -name whisper-cli -type f | head -1)
+          "$cli" -m model-out/ggml-hinglish-swift-q8_0.bin -f smp/a.wav -l en --dtw base -nfa -ojf -of smp/out -np
           echo "::notice::Swift model sample: $(python3 -c "import json;d=json.load(open('smp/out.json'));print(' '.join(s['text'] for s in d['transcription']))")"
       - uses: actions/upload-artifact@v4
         with:

@@ -158,7 +158,7 @@ h2{font-size:clamp(28px,3.6vw,42px);line-height:1.12;letter-spacing:-.8px;margin
 .yes{color:var(--green)} .no{color:#f87171}
 
 /* download */
-.dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.dl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .dl-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:28px;display:flex;flex-direction:column}
 .dl-card.rec{border-color:#ff8a1f88;box-shadow:0 0 0 1px #ff8a1f55 inset}
 .dl-card .os{display:flex;align-items:center;gap:12px;margin-bottom:6px}
@@ -169,6 +169,7 @@ h2{font-size:clamp(28px,3.6vw,42px);line-height:1.12;letter-spacing:-.8px;margin
 .dl-card ul{margin:14px 0 22px;padding-left:18px;color:var(--muted);font-size:14px}
 .dl-card li{margin:4px 0}
 .dl-card .btn{margin-top:auto}
+.hidden-cta{display:none!important}
 .dl-card .sub{margin-top:10px;font-size:12px;color:var(--dim);text-align:center}
 .tabs{display:inline-flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;margin:34px 0 14px}
 .tab{background:none;border:0;color:var(--muted);font:600 14px Poppins,sans-serif;padding:8px 16px;border-radius:9px;cursor:pointer}
@@ -202,6 +203,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
 
 /* ---------- responsive ---------- */
 @media (max-width:1000px){
+  .dl-grid{grid-template-columns:1fr 1fr}
   .hero-grid{grid-template-columns:1fr;gap:44px}
   .phone{width:min(260px,66vw)}
   .features{grid-template-columns:repeat(2,1fr)}
@@ -258,6 +260,10 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
         <a class="btn" data-dl="mac" href="#download">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.9-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.2.9-1.3 1.3-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.2 5.6c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>
           <span class="t">Download for Mac<small>Apple Silicon (M1–M4)</small></span>
+        </a>
+        <a class="btn hidden-cta" data-dl="android" href="#download">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.64.64 0 0 0-.83.22l-1.88 3.24a11.46 11.46 0 0 0-8.94 0L5.65 5.67a.64.64 0 0 0-.87-.2c-.28.18-.37.54-.22.83L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>
+          <span class="t">Download for Android<small>Android 10+ · free APK</small></span>
         </a>
       </div>
       <p class="release-meta" id="releaseMeta">Latest version · about 650 MB · <a href="#install">first-launch help</a></p>
@@ -429,12 +435,24 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
         <a class="btn primary" data-dl="mac" href="#">Download for Mac <span data-size="mac"></span></a>
         <div class="sub">DesiCaps-Mac-AppleSilicon.dmg</div>
       </div>
+      <div class="dl-card" id="cardAndroid">
+        <div class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.64.64 0 0 0-.83.22l-1.88 3.24a11.46 11.46 0 0 0-8.94 0L5.65 5.67a.64.64 0 0 0-.87-.2c-.28.18-.37.54-.22.83L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg><h3>Android</h3><span class="badge">Recommended for you</span></div>
+        <ul>
+          <li>Android 10 or newer, 64-bit phone</li>
+          <li>Captions made on the phone — no upload</li>
+          <li>Hinglish model built in · bigger models optional</li>
+          <li>Saves to your gallery, share straight to Reels</li>
+        </ul>
+        <a class="btn primary" data-dl="android" href="#">Download for Android <span data-size="android"></span></a>
+        <div class="sub">DesiCaps-Android.apk · iPhone version coming later</div>
+      </div>
     </div>
 
     <div id="install">
       <div class="tabs" role="tablist" aria-label="First launch help">
         <button class="tab" role="tab" id="tab-win" aria-controls="guide-win" aria-selected="true">First launch on Windows</button>
         <button class="tab" role="tab" id="tab-mac" aria-controls="guide-mac" aria-selected="false">First launch on Mac</button>
+        <button class="tab" role="tab" id="tab-android" aria-controls="guide-android" aria-selected="false">Install on Android</button>
       </div>
       <div class="guide" role="tabpanel" id="guide-win" aria-labelledby="tab-win">
         <ol>
@@ -448,6 +466,13 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
           <li>Open <b>DesiCaps-Mac-AppleSilicon.dmg</b> and drag <b>DesiCaps</b> into <b>Applications</b>.</li>
           <li>In Applications, <b>right-click</b> (or <kbd>Control</kbd>-click) DesiCaps → <b>Open</b> → <b>Open</b>.</li>
           <li>On macOS 15 or newer, if there's no Open button: <b>System Settings → Privacy &amp; Security</b> → scroll down → <b>Open Anyway</b>.</li>
+        </ol>
+      </div>
+      <div class="guide" role="tabpanel" id="guide-android" aria-labelledby="tab-android" hidden>
+        <ol>
+          <li>On your phone, tap <b>Download for Android</b> and open <b>DesiCaps-Android.apk</b> when it finishes.</li>
+          <li>If Android asks, allow <b>Install unknown apps</b> for your browser, then tap <b>Install</b>.</li>
+          <li>If Play Protect warns you, tap <b>More details → Install anyway</b>. Open DesiCaps and pick a video.</li>
         </ol>
       </div>
       <p class="note">Why the warning? DesiCaps is free and not signed with a paid Apple/Microsoft developer certificate yet. You only confirm it once. The full source code is public on <a data-gh href="#">GitHub</a>.</p>
@@ -465,6 +490,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
     <details><summary>Will it run on my laptop?</summary><p>Yes, on most Windows 10/11 PCs from the last ~10 years and any Apple Silicon Mac. A graphics card makes transcription much faster; without one it still works on the CPU, just slower.</p></details>
     <details><summary>Do I need After Effects?</summary><p>No. DesiCaps renders the finished MP4 itself. The After Effects export is there for editors who want to fine-tune animations in AE.</p></details>
     <details><summary>What are “AI Style” and “Post kit”?</summary><p>Optional extras powered by a free local AI (Ollama). AI Style colours the punch words and adds emoji; Post kit writes hook titles, captions and hashtags in your Hinglish tone. The app guides you through the one-time setup.</p></details>
+    <details><summary>Is there a phone app?</summary><p>Yes — DesiCaps for Android (Android 10+) makes the captions on the phone itself, with the Hinglish model built in and bigger models as optional downloads. Longer videos are faster on a PC. An iPhone version may come later.</p></details>
     <details><summary>Intel Mac?</summary><p>Not in this version — the Mac app needs an Apple Silicon (M-series) Mac.</p></details>
   </div>
 </section>
@@ -497,7 +523,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
 (() => {
   /* ▼▼ CONFIG ▼▼ */
   const REPO = "demoxxiii/DesiCaps";           // GitHub "user/repo" that publishes the releases
-  const FILES = { win: "DesiCaps-Windows-Setup.exe", mac: "DesiCaps-Mac-AppleSilicon.dmg" };
+  const FILES = { win: "DesiCaps-Windows-Setup.exe", mac: "DesiCaps-Mac-AppleSilicon.dmg", android: "DesiCaps-Android.apk" };
   /* ▲▲ CONFIG ▲▲ */
 
   const GH = `https://github.com/${REPO}`;
@@ -509,22 +535,28 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
   const ua = navigator.userAgent || "", plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
   const isMac = /Mac/i.test(plat) || /Macintosh/.test(ua);
   const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
-  const mine = isMac ? "mac" : "win";
+  const isAndroid = /Android/i.test(ua);
+  const mine = isAndroid ? "android" : isMac ? "mac" : "win";
 
   // links
   $$("[data-gh]").forEach(a => { a.href = GH; a.rel = "noopener"; });
   $$("[data-rel]").forEach(a => { a.href = GH + "/releases"; a.rel = "noopener"; });
   $$("[data-dl]").forEach(a => {
     const k = a.dataset.dl === "auto" ? mine : a.dataset.dl;
-    if (a.closest(".dl-card") || a.dataset.dl === "auto" || !isMobile) a.href = latest(FILES[k]);
-    if (isMobile && !a.closest(".dl-card")) a.href = "#download";   // phones: show the download section instead
+    if (a.closest(".dl-card") || a.dataset.dl === "auto" || !isMobile || (isAndroid && k === "android")) a.href = latest(FILES[k]);
+    else if (isMobile && !a.closest(".dl-card")) a.href = "#download";   // other phones: show the download section instead
   });
   // put the visitor's platform first
   if (isMac) {
     const row = document.getElementById("heroCta"), w = row.querySelector('[data-dl="win"]'), m = row.querySelector('[data-dl="mac"]');
     row.prepend(m); m.classList.add("primary"); w.classList.remove("primary");
   }
-  if (!isMobile) document.getElementById(isMac ? "cardMac" : "cardWin").classList.add("rec");
+  if (isAndroid) {   // Android phone: the Android download leads
+    const row = document.getElementById("heroCta"), an = row.querySelector('[data-dl="android"]');
+    row.querySelectorAll(".btn").forEach(b => b.classList.remove("primary"));
+    an.classList.remove("hidden-cta"); an.classList.add("primary"); row.prepend(an);
+  }
+  if (!isMobile || isAndroid) document.getElementById(isAndroid ? "cardAndroid" : isMac ? "cardMac" : "cardWin").classList.add("rec");
   document.getElementById("yr").textContent = new Date().getFullYear();
 
   // live release info from GitHub
@@ -533,7 +565,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
     const size = n => (n / 1048576).toFixed(0) + " MB";
     const date = new Date(rel.published_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
     const asset = f => (rel.assets || []).find(a => a.name === f);
-    for (const k of ["win", "mac"]) { const a = asset(FILES[k]); if (a) $$(`[data-size="${k}"]`).forEach(s => s.textContent = "· " + size(a.size)); }
+    for (const k of ["win", "mac", "android"]) { const a = asset(FILES[k]); if (a) $$(`[data-size="${k}"]`).forEach(s => s.textContent = "· " + size(a.size)); }
     const w = asset(FILES[mine]);
     document.getElementById("releaseMeta").innerHTML =
       `Version ${rel.tag_name.replace(/^v/, "")} · ${w ? size(w.size) : ""} · updated ${date} · <a href="#install">first-launch help</a>`;
@@ -549,7 +581,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
   const tabs = $$(".tab");
   const pick = id => tabs.forEach(t => { const on = t.id === id; t.setAttribute("aria-selected", on); document.getElementById(t.getAttribute("aria-controls")).hidden = !on; });
   tabs.forEach(t => t.addEventListener("click", () => pick(t.id)));
-  if (isMac) pick("tab-mac");
+  if (isAndroid) pick("tab-android"); else if (isMac) pick("tab-mac");
 
   // styles gallery (videos rendered by DesiCaps itself)
   const STYLES = [
