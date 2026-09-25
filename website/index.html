@@ -170,6 +170,7 @@ h2{font-size:clamp(28px,3.6vw,42px);line-height:1.12;letter-spacing:-.8px;margin
 .dl-card li{margin:4px 0}
 .dl-card .btn{margin-top:auto}
 .hidden-cta{display:none!important}
+.beta{font-size:12px;font-weight:700;color:#111;background:var(--acc);border-radius:99px;padding:2px 8px;vertical-align:middle;margin-left:6px}
 .dl-card .sub{margin-top:10px;font-size:12px;color:var(--dim);text-align:center}
 .tabs{display:inline-flex;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px;margin:34px 0 14px}
 .tab{background:none;border:0;color:var(--muted);font:600 14px Poppins,sans-serif;padding:8px 16px;border-radius:9px;cursor:pointer}
@@ -552,6 +553,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
     row.prepend(m); m.classList.add("primary"); w.classList.remove("primary");
   }
   if (isAndroid) {   // Android phone: the Android download leads
+    const h = document.getElementById("h1"); h.innerHTML = h.innerHTML.replace("own PC.", "own phone.");
     const row = document.getElementById("heroCta"), an = row.querySelector('[data-dl="android"]');
     row.querySelectorAll(".btn").forEach(b => b.classList.remove("primary"));
     an.classList.remove("hidden-cta"); an.classList.add("primary"); row.prepend(an);
@@ -559,6 +561,19 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
   if (!isMobile || isAndroid) document.getElementById(isAndroid ? "cardAndroid" : isMac ? "cardMac" : "cardWin").classList.add("rec");
   document.getElementById("yr").textContent = new Date().getFullYear();
 
+  const ANDROID_LINKS = mine === "android" ? '[data-dl="android"],[data-dl="auto"]' : '[data-dl="android"]';
+  // Android: until the APK is part of a full release, offer the public test build
+  function useAndroidBeta() {
+    const url = `${GH}/releases/download/android-test/${FILES.android}`;
+    $$(ANDROID_LINKS).forEach(a => { if (a.getAttribute("href") !== "#download") a.href = url; });
+    $$('#cardAndroid h3').forEach(h => { if (!h.querySelector(".beta")) h.insertAdjacentHTML("beforeend", ' <span class="beta">Beta</span>'); });
+    fetch(`https://api.github.com/repos/${REPO}/releases/tags/android-test`).then(r => r.ok ? r.json() : null).then(rel => {
+      const a = rel && (rel.assets || []).find(x => x.name === FILES.android);
+      if (a) $$('[data-size="android"]').forEach(s => s.textContent = "· " + (a.size / 1048576).toFixed(0) + " MB");
+    }).catch(() => {});
+  }
+
+  useAndroidBeta();
   // live release info from GitHub
   fetch(`https://api.github.com/repos/${REPO}/releases/latest`).then(r => r.ok ? r.json() : null).then(rel => {
     if (!rel) return;
@@ -566,9 +581,13 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
     const date = new Date(rel.published_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
     const asset = f => (rel.assets || []).find(a => a.name === f);
     for (const k of ["win", "mac", "android"]) { const a = asset(FILES[k]); if (a) $$(`[data-size="${k}"]`).forEach(s => s.textContent = "· " + size(a.size)); }
+    if (asset(FILES.android)) {   // phone app is part of the full release now
+      $$(ANDROID_LINKS).forEach(a => { if (a.getAttribute("href") !== "#download") a.href = latest(FILES.android); });
+      $$("#cardAndroid .beta").forEach(b => b.remove());
+    }
     const w = asset(FILES[mine]);
     document.getElementById("releaseMeta").innerHTML =
-      `Version ${rel.tag_name.replace(/^v/, "")} · ${w ? size(w.size) : ""} · updated ${date} · <a href="#install">first-launch help</a>`;
+      `Version ${rel.tag_name.replace(/^v/, "")}${w ? " · " + size(w.size) : ""} · updated ${date} · <a href="#install">first-launch help</a>`;
     document.getElementById("dlVersion").textContent =
       `Version ${rel.tag_name.replace(/^v/, "")}, released ${date}. One installer, everything included: the app, the Hinglish speech model, fonts and emoji.`;
   }).catch(() => {});
