@@ -18,7 +18,9 @@ copy /y "packaging\github\*.yml" ".github\workflows\" >nul
 call :android_secrets "%LOGIN%/!REPO!"
 "%GIT%" add -A
 "%GIT%" -c user.name="%LOGIN%" -c user.email="%LOGIN%@users.noreply.github.com" commit -q -m "Android test build"
-"%GIT%" push -q origin HEAD || (echo Push failed. & pause & exit /b 1)
+set "OK="
+for /l %%n in (1,1,4) do if not defined OK ( "%GIT%" push -q origin HEAD && set "OK=1" || (echo  Network hiccup - retrying in 5 seconds... & timeout /t 5 >nul) )
+if not defined OK (echo Push failed - check your internet and run this again. & pause & exit /b 1)
 echo.
 echo  DONE - GitHub is building the Android test app (about 15-25 minutes).
 echo    Progress : https://github.com/%LOGIN%/!REPO!/actions
