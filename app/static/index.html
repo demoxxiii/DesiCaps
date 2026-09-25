@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DesiCaps Studio</title>
+<link rel="icon" href="icon.png">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<!-- ============ HOME ============ -->
+<section id="home" class="screen">
+  <div class="home-wrap">
+    <div class="brand big"><img class="logo" src="icon.png" alt=""> DesiCaps <em>Studio</em></div>
+    <p class="tag">Hinglish captions, animated. 100% local on your GPU.</p>
+    <label id="drop" class="drop">
+      <input id="fileInput" type="file" accept="video/*" hidden>
+      <div class="drop-icon">⬆</div>
+      <div><b>Choose a video</b> or drop it here</div>
+      <div class="muted">MP4 / MOV / MKV — vertical or landscape</div>
+    </label>
+    <div id="pathRow">
+      <div class="or">or paste the path of a file on disk</div>
+      <div class="row">
+        <input id="pathInput" placeholder="D:\Reels\take_03.mp4" spellcheck="false">
+        <button id="pathBtn" class="btn">Open</button>
+      </div>
+    </div>
+    <div class="row home-links">
+      <button class="btn ghost" id="openExports">📂 Exports folder</button>
+      <button class="btn ghost" id="aiSetupBtn">✨ Local AI setup</button>
+      <div class="spacer"></div><span class="muted small" id="versionLbl"></span>
+    </div>
+    <h3>Recent projects</h3>
+    <div id="projList" class="proj-list"></div>
+  </div>
+</section>
+
+<!-- ============ EDITOR ============ -->
+<section id="editor" class="screen hidden">
+  <header class="topbar">
+    <button id="backBtn" class="icon-btn" title="Projects">←</button>
+    <div class="brand"><img class="logo" src="icon.png" alt=""> DesiCaps</div>
+    <input id="projName" class="proj-name" spellcheck="false">
+    <div class="spacer"></div>
+    <button id="undoBtn" class="icon-btn" title="Undo (Ctrl+Z)">↶</button>
+    <button id="redoBtn" class="icon-btn" title="Redo (Ctrl+Shift+Z)">↷</button>
+    <input id="vocabInput" class="vocab" placeholder="Names in video: GTA 6, Rockstar…" title="Words/names the speaker uses - helps the AI spell them right" spellcheck="false">
+    <select id="engineSel" title="Transcription engine"></select>
+    <button id="transcribeBtn" class="btn">🎙 Transcribe</button>
+    <select id="ollamaSel" title="Local Ollama model"></select>
+    <button id="enhanceBtn" class="btn ghost" title="Auto emphasis + emoji with your local LLM">✨ AI Style</button>
+    <button id="kitBtn" class="btn ghost" title="Hook titles, captions & hashtags with your local LLM">📣 Post kit</button>
+    <div class="menu">
+      <button class="btn primary" id="exportBtn">Export ▾</button>
+      <div class="menu-pop" id="exportMenu">
+        <button data-exp="mp4">🎬 Render MP4 (GPU)</button>
+        <button data-exp="ae">🅰 After Effects script (.jsx)</button>
+        <button data-exp="srt">📄 SRT subtitles</button>
+        <button data-exp="fonts">🔤 Install fonts (for After Effects)</button>
+        <button data-exp="folder">📂 Open exports folder</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- transcript -->
+    <aside class="panel left">
+      <div class="panel-h">Transcript <span class="muted" id="wordCount"></span></div>
+      <div class="findbar">
+        <input id="findIn" placeholder="Find" spellcheck="false">
+        <input id="replIn" placeholder="Replace with" spellcheck="false">
+        <button class="mini" id="replBtn" title="Replace every match (whole words, any case)">Replace all</button>
+      </div>
+      <div id="inspector" class="inspector hidden">
+        <div class="row">
+          <input id="wText" class="w-text" spellcheck="false">
+        </div>
+        <div class="row small">
+          <label>In <input id="wStart" type="number" step="0.01"></label>
+          <button class="mini" id="setIn" title="Set to playhead">⤓</button>
+          <label>Out <input id="wEnd" type="number" step="0.01"></label>
+          <button class="mini" id="setOut" title="Set to playhead">⤓</button>
+        </div>
+        <div class="row small seg" id="hlSeg">
+          <button data-hl="0">Normal</button><button data-hl="1">Emph 1</button><button data-hl="2">Emph 2</button>
+        </div>
+        <div class="row small">
+          <button class="mini wide" id="emojiBtn">😀 Emoji</button>
+          <button class="mini wide" id="brkBtn" title="Start a new caption at this word (Enter)">↵ New line</button>
+        </div>
+        <div class="row small">
+          <button class="mini wide" id="addBtn">＋ Word after</button>
+          <button class="mini wide" id="splitBtn" title="Split into two words">✂ Split</button>
+          <button class="mini wide danger" id="delBtn">🗑 Delete</button>
+        </div>
+        <div id="emojiGrid" class="emoji-grid hidden"></div>
+      </div>
+      <div id="transcript" class="transcript"></div>
+    </aside>
+
+    <!-- stage -->
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <div class="frame" id="frame">
+          <video id="video" playsinline preload="auto"></video>
+          <canvas id="overlay"></canvas>
+          <div id="dragHint" class="drag-hint">drag to move captions</div>
+        </div>
+        <div id="empty" class="empty hidden">
+          <div>No captions yet</div>
+          <button class="btn primary" id="emptyTranscribe">🎙 Transcribe now</button>
+        </div>
+      </div>
+      <div class="transport">
+        <button id="playBtn" class="icon-btn">▶</button>
+        <span id="timeLbl" class="mono">0:00.00</span>
+        <div class="spacer"></div>
+        <label class="muted small">Zoom <input id="zoom" type="range" min="40" max="400" value="120"></label>
+      </div>
+      <div class="timeline" id="timeline"><canvas id="tl"></canvas></div>
+    </div>
+
+    <!-- style -->
+    <aside class="panel right">
+      <div class="panel-h">Style</div>
+      <div id="presetGrid" class="preset-grid"></div>
+      <div id="styleForm" class="style-form"></div>
+    </aside>
+  </div>
+</section>
+
+<div id="kitModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-h"><b>📣 Post kit</b><span class="muted small" id="kitModel"></span><div class="spacer"></div>
+      <button class="mini" id="kitRegen">↻ Regenerate</button><button class="icon-btn" id="kitClose">✕</button></div>
+    <div id="kitBody" class="kit-body"></div>
+  </div>
+</div>
+<div id="aiModal" class="modal hidden">
+  <div class="modal-card small-card">
+    <div class="modal-h"><b>✨ Local AI (optional)</b><div class="spacer"></div><button class="icon-btn" id="aiClose">✕</button></div>
+    <div class="kit-body" id="aiBody"></div>
+  </div>
+</div>
+<div id="toast" class="toast hidden"></div>
+<div id="jobBox" class="job hidden"><div class="job-msg" id="jobMsg"></div><div class="bar"><i id="jobBar"></i></div></div>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

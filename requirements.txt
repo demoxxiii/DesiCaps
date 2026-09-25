@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart
+pillow>=10.1
+pywebview>=5.3
+imageio-ffmpeg; sys_platform == "darwin"

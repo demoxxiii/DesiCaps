@@ -1,0 +1,218 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DesiCaps Studio â€“ Free Hinglish captions for Reels & Shorts</title>
+<meta name="description" content="Free, offline caption app for Indian creators. Auto Hinglish captions with word-by-word animation, After Effects export, for Windows and Mac.">
+<meta property="og:title" content="DesiCaps Studio â€“ Free Hinglish captions">
+<meta property="og:description" content="Auto Hinglish captions with captions.ai-style animations. Free, offline, for Windows & Mac.">
+<link rel="icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700;900&family=Anton&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0b0b0e;--card:#15161b;--line:#26272f;--text:#f2f2f5;--muted:#9a9cab;--acc:#ff8a1f;--acc2:#ff4d3a;--yellow:#ffe500;--green:#22c55e}
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 Poppins,system-ui,-apple-system,"Segoe UI",sans-serif}
+  a{color:inherit}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+  nav{display:flex;align-items:center;gap:12px;padding:18px 0}
+  nav img{width:36px;height:36px;border-radius:9px}
+  nav b{font-size:18px}
+  nav .sp{flex:1}
+  nav a.lnk{color:var(--muted);text-decoration:none;font-size:14px;margin-left:18px}
+  nav a.lnk:hover{color:var(--text)}
+  .hero{display:grid;grid-template-columns:1.2fr .8fr;gap:48px;align-items:center;padding:48px 0 72px}
+  .pill{display:inline-block;font-size:13px;padding:5px 12px;border:1px solid var(--line);border-radius:99px;color:var(--muted);margin-bottom:18px}
+  .pill b{color:var(--green)}
+  h1{font-size:clamp(34px,5vw,58px);line-height:1.08;margin:0 0 18px;font-weight:900;letter-spacing:-.5px}
+  h1 .hl{background:var(--yellow);color:#111;padding:0 10px;border-radius:10px;display:inline-block;transform:rotate(-1.5deg)}
+  .sub{color:var(--muted);font-size:18px;max-width:540px;margin:0 0 30px}
+  .dl{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:14px;font-weight:700;text-decoration:none;border:1px solid var(--line);background:var(--card);transition:.15s}
+  .btn:hover{transform:translateY(-2px);border-color:#3a3c48}
+  .btn.primary{background:linear-gradient(135deg,var(--acc),var(--acc2));border:none;color:#fff;box-shadow:0 10px 30px #ff5a2a40}
+  .btn small{display:block;font-weight:500;font-size:12px;opacity:.85}
+  .btn svg{width:22px;height:22px;flex:none}
+  .meta{color:var(--muted);font-size:13px;margin-top:14px}
+  .meta a{color:var(--text)}
+  /* phone demo */
+  .phone{justify-self:center;width:290px;aspect-ratio:9/19;border-radius:42px;background:#000;border:10px solid #1d1e24;position:relative;overflow:hidden;box-shadow:0 30px 80px #000c,0 0 0 1px #2c2d36}
+  .phone .bg{position:absolute;inset:0;background:radial-gradient(120% 70% at 50% 25%,#3b2a6b,#14121f 60%),#111}
+  .phone .face{position:absolute;left:50%;top:22%;width:150px;height:150px;border-radius:50%;transform:translateX(-50%);background:radial-gradient(circle at 50% 40%,#d9a27e,#8a5a3c 70%);opacity:.85}
+  .phone .body{position:absolute;left:50%;top:48%;width:230px;height:260px;border-radius:120px 120px 0 0;transform:translateX(-50%);background:linear-gradient(#31476b,#1d2a42)}
+  .cap{position:absolute;left:0;right:0;top:64%;text-align:center;font-family:Anton,Impact,sans-serif;font-size:34px;letter-spacing:.5px;text-transform:uppercase;line-height:1.1;padding:0 14px}
+  .cap span{color:#fff;-webkit-text-stroke:6px #000;paint-order:stroke fill;display:inline-block;margin:0 3px;transition:transform .12s,color .12s}
+  .cap span.on{color:var(--yellow);transform:scale(1.15)}
+  .cap .em{font-size:34px;display:block;margin-bottom:6px;-webkit-text-stroke:0;animation:pop .3s ease-out}
+  @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+  section{padding:64px 0;border-top:1px solid var(--line)}
+  h2{font-size:32px;margin:0 0 10px;font-weight:900}
+  .lead{color:var(--muted);margin:0 0 34px;max-width:640px}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px}
+  .card .ic{font-size:26px}
+  .card h3{margin:10px 0 6px;font-size:17px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .steps{counter-reset:s;display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .steps .card:before{counter-increment:s;content:counter(s);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--acc);color:#fff;font-weight:900;margin-bottom:8px}
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tab{padding:9px 16px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--muted);font:inherit;cursor:pointer}
+  .tab.on{background:var(--card);color:var(--text);border-color:#3a3c48}
+  .guide{display:none}.guide.on{display:block}
+  .guide ol{margin:0;padding-left:20px}.guide li{margin:8px 0;color:#d6d7de}
+  kbd{background:#23242c;border:1px solid #34353f;border-bottom-width:2px;border-radius:6px;padding:1px 7px;font-size:13px;font-family:inherit}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  td,th{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:500}
+  details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:10px}
+  summary{cursor:pointer;font-weight:700}
+  details p{color:var(--muted);margin:10px 0 0}
+  footer{padding:40px 0 60px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+  footer a{color:var(--text)}
+  @media (max-width:900px){
+    .hero{grid-template-columns:1fr;padding-top:24px}
+    .phone{width:240px}
+    .grid,.steps{grid-template-columns:1fr 1fr}
+    nav a.lnk{display:none}
+  }
+  @media (max-width:560px){.grid,.steps{grid-template-columns:1fr}.btn{width:100%;justify-content:center}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <img src="icon.png" alt="DesiCaps logo"><b>DesiCaps Studio</b><div class="sp"></div>
+    <a class="lnk" href="#features">Features</a><a class="lnk" href="#install">Install help</a><a class="lnk" href="#faq">FAQ</a>
+    <a class="lnk" id="ghLink" href="#">GitHub</a>
+  </nav>
+
+  <div class="hero">
+    <div>
+      <span class="pill"><b>â—</b> 100% free Â· works offline Â· no watermark</span>
+      <h1>Hinglish captions that <span class="hl">POP</span> â€” made on your own PC.</h1>
+      <p class="sub">DesiCaps listens to your Reel, writes it out in Hinglish (â€œbhai ye trick kamaal ki haiâ€), and animates every word like the big creator apps. No upload, no subscription.</p>
+      <div class="dl" id="dl">
+        <a class="btn primary" id="btnWin" href="#">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 5.5 10.5 4.4v7.2H3zM11.5 4.3 21 3v8.6h-9.5zM3 12.5h7.5v7.1L3 18.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg>
+          <span>Download for Windows<small>Windows 10 / 11 Â· 64-bit</small></span></a>
+        <a class="btn" id="btnMac" href="#">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.9-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.2.9-1.3 1.3-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.2 5.6c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg>
+          <span>Download for Mac<small>Apple Silicon (M1 â€“ M4) Â· macOS 12+</small></span></a>
+      </div>
+      <p class="meta" id="meta">About 700 MB Â· includes the Hinglish speech model Â· <a href="#install">first-launch help</a></p>
+    </div>
+    <div class="phone" aria-hidden="true">
+      <div class="bg"></div><div class="face"></div><div class="body"></div>
+      <div class="cap" id="demoCap"></div>
+    </div>
+  </div>
+</div>
+
+<section id="features"><div class="wrap">
+  <h2>Everything a Reels editor needs</h2>
+  <p class="lead">Built for Indian creators who speak the way India speaks â€” half Hindi, half English, all vibe.</p>
+  <div class="grid">
+    <div class="card"><div class="ic">ðŸŽ™</div><h3>Auto Hinglish transcription</h3><p>A Whisper model trained on Indian speech writes Hindi in Roman letters, word-timed to the millisecond. Also Hindi (à¤¦à¥‡à¤µà¤¨à¤¾à¤—à¤°à¥€) and English.</p></div>
+    <div class="card"><div class="ic">âœ¨</div><h3>9 animated styles</h3><p>Hormozi yellow, Beast box, Karaoke reveal, One-word punch, Neon and more â€” every font, colour, stroke and animation is editable.</p></div>
+    <div class="card"><div class="ic">âœï¸</div><h3>Word-level editor</h3><p>Double-click to fix a word, drag timings on the timeline, find &amp; replace, emphasis colours, emoji, undo/redo.</p></div>
+    <div class="card"><div class="ic">âš¡</div><h3>GPU fast</h3><p>Uses your NVIDIA/AMD/Intel GPU on Windows and Metal on Apple Silicon. A 1-minute Reel transcribes in seconds.</p></div>
+    <div class="card"><div class="ic">ðŸ…°</div><h3>After Effects export</h3><p>One click builds fully editable animated caption layers in After Effects â€” or render a finished MP4 or SRT directly.</p></div>
+    <div class="card"><div class="ic">ðŸ”’</div><h3>Private &amp; offline</h3><p>Your videos never leave your computer. No account, no upload, no watermark, no limits. Free forever and open source.</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>How it works</h2>
+  <p class="lead">From raw clip to captioned Reel in about a minute.</p>
+  <div class="steps">
+    <div class="card"><h3>Open your video</h3><p>Vertical or landscape, MP4 / MOV / MKV.</p></div>
+    <div class="card"><h3>Transcribe</h3><p>Hinglish words appear with exact timing.</p></div>
+    <div class="card"><h3>Pick a style</h3><p>Tweak words, colours, emoji, position.</p></div>
+    <div class="card"><h3>Export</h3><p>MP4, After Effects or SRT â€” done.</p></div>
+  </div>
+</div></section>
+
+<section id="install"><div class="wrap">
+  <h2>First launch help</h2>
+  <p class="lead">DesiCaps is free and not yet signed with a paid Apple/Microsoft certificate, so your computer asks once whether you trust it. This is normal for free, open-source apps.</p>
+  <div class="tabs"><button class="tab on" data-g="win">Windows</button><button class="tab" data-g="mac">Mac</button></div>
+  <div class="card guide on" id="g-win"><ol>
+    <li>Open <b>DesiCaps-Windows-Setup.exe</b>.</li>
+    <li>If you see <b>â€œWindows protected your PCâ€</b>, click <b>More info</b> â†’ <b>Run anyway</b>.</li>
+    <li>Click through the installer (no admin password needed). DesiCaps opens when it's done.</li>
+  </ol></div>
+  <div class="card guide" id="g-mac"><ol>
+    <li>Open <b>DesiCaps-Mac-AppleSilicon.dmg</b> and drag <b>DesiCaps</b> into <b>Applications</b>.</li>
+    <li>In Applications, <b>right-click</b> (or <kbd>Control</kbd>-click) DesiCaps â†’ <b>Open</b> â†’ <b>Open</b>.</li>
+    <li>macOS 15 or newer: if there's no Open button, go to <b>System Settings â†’ Privacy &amp; Security</b>, scroll down and click <b>Open Anyway</b> next to DesiCaps.</li>
+    <li>You only do this once.</li>
+  </ol></div>
+</div></section>
+
+<section><div class="wrap">
+  <h2>System requirements</h2>
+  <table>
+    <tr><th></th><th>Windows</th><th>Mac</th></tr>
+    <tr><td>OS</td><td>Windows 10 or 11, 64-bit</td><td>macOS 12 Monterey or newer</td></tr>
+    <tr><td>Chip</td><td>Any 64-bit CPU with AVX2 (2015+)</td><td>Apple Silicon (M1, M2, M3, M4)</td></tr>
+    <tr><td>GPU (optional)</td><td>NVIDIA / AMD / Intel with Vulkan â€” much faster</td><td>Built-in (Metal)</td></tr>
+    <tr><td>Memory</td><td>8 GB RAM (16 GB recommended)</td><td>8 GB (16 GB recommended)</td></tr>
+    <tr><td>Disk</td><td>~1.5 GB</td><td>~1.5 GB</td></tr>
+  </table>
+</div></section>
+
+<section id="faq"><div class="wrap">
+  <h2>FAQ</h2>
+  <details><summary>Is it really free? What's the catch?</summary><p>No catch. DesiCaps is open source and runs on your computer, so there are no server costs to pass on to you. No watermark, no limits, no account.</p></details>
+  <details><summary>Does it need internet?</summary><p>No. Everything â€” transcription, editing, rendering â€” runs offline. Internet is only used if you choose to download an extra language model or the optional local AI.</p></details>
+  <details><summary>How accurate is the Hinglish?</summary><p>Very good for clear speech, but no model is perfect. Names and slang sometimes need a fix â€” add names like â€œGTA 6, Rockstarâ€ in the â€œNames in videoâ€ box and use Find &amp; Replace for the rest.</p></details>
+  <details><summary>What's â€œAI Styleâ€ and â€œPost kitâ€?</summary><p>Optional features that use a free local AI (Ollama) to auto-colour punch words, add emoji, and write hook titles, captions and hashtags in your Hinglish tone. The app walks you through setting it up.</p></details>
+  <details><summary>Intel Mac?</summary><p>Not in this version â€” DesiCaps for Mac needs an Apple Silicon (M-series) Mac.</p></details>
+  <details><summary>Do I need After Effects?</summary><p>No. DesiCaps renders the finished MP4 itself. After Effects export is there for editors who want to fine-tune.</p></details>
+</div></section>
+
+<footer><div class="wrap">
+  DesiCaps Studio is free &amp; open source (GPL-3.0). Speech model: <a href="https://huggingface.co/Oriserve/Whisper-Hindi2Hinglish-Apex">Oriserve Whisper-Hindi2Hinglish</a> (Apache-2.0) running on <a href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a>.
+  Emoji: <a href="https://github.com/jdecked/twemoji">Twemoji</a> (CC-BY 4.0). Fonts: Google Fonts (OFL). Video: FFmpeg.
+  <br><a id="ghLink2" href="#">Source code &amp; all releases on GitHub</a>
+</div></footer>
+
+<script>
+  // â–¼â–¼ Set this to your GitHub "username/repository" after publishing â–¼â–¼
+  const REPO = "demoxxiii/DesiCaps";
+  const base = `https://github.com/${REPO}/releases/latest/download/`;
+  document.getElementById("btnWin").href = base + "DesiCaps-Windows-Setup.exe";
+  document.getElementById("btnMac").href = base + "DesiCaps-Mac-AppleSilicon.dmg";
+  document.getElementById("ghLink").href = document.getElementById("ghLink2").href = `https://github.com/${REPO}`;
+  // put the visitor's platform first
+  const ua = navigator.userAgent, isMac = /Macintosh|Mac OS X/.test(ua);
+  if (isMac) {
+    const dl = document.getElementById("dl"), w = document.getElementById("btnWin"), m = document.getElementById("btnMac");
+    dl.prepend(m); m.classList.add("primary"); w.classList.remove("primary");
+  }
+  // install help tabs
+  document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+    document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x === t));
+    document.querySelectorAll(".guide").forEach(g => g.classList.toggle("on", g.id === "g-" + t.dataset.g));
+  });
+  if (isMac) document.querySelector('.tab[data-g="mac"]').click();
+  // caption demo
+  const lines = [["BHAI", "YE", "TRICK", "ðŸ”¥"], ["KAMAAL", "KI", "HAI"], ["10X", "PAISA", "BANAO", "ðŸ’°"], ["BINA", "KISI", "INVESTMENT"], ["FOLLOW", "KARO", "ABHI!", "ðŸš€"]];
+  const cap = document.getElementById("demoCap"); let li = 0;
+  function play() {
+    const words = lines[li % lines.length].filter(w => !/\p{Extended_Pictographic}/u.test(w));
+    const emoji = lines[li % lines.length].find(w => /\p{Extended_Pictographic}/u.test(w));
+    cap.innerHTML = (emoji ? `<span class="em">${emoji}</span>` : "") + words.map(w => `<span>${w}</span>`).join(" ");
+    const spans = [...cap.querySelectorAll("span:not(.em)")]; let wi = 0;
+    const tick = setInterval(() => {
+      spans.forEach((s, i) => s.classList.toggle("on", i === wi));
+      if (++wi > spans.length) { clearInterval(tick); li++; setTimeout(play, 150); }
+    }, 380);
+  }
+  play();
+</script>
+</body>
+</html>
+

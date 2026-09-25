@@ -1,0 +1,194 @@
+name: Build desktop apps
+
+on:
+  push:
+    tags: ["v*"]          # push a tag like v1.0.0 to build AND publish a release
+  workflow_dispatch:      # or run manually from the Actions tab (builds only)
+
+permissions:
+  contents: write
+
+env:
+  WCPP_REF: v1.8.5                                  # whisper.cpp version
+  HF_MODEL: Oriserve/Whisper-Hindi2Hinglish-Apex    # Hinglish speech model (Apache-2.0)
+  MODEL_QUANT: q5_0
+
+jobs:
+  # ------------------------------------------------------------------ model
+  model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: model-out
+          key: model-${{ env.HF_MODEL }}-${{ env.MODEL_QUANT }}-${{ env.WCPP_REF }}-v1
+      - name: Convert Hinglish model to whisper.cpp format
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp wcpp || git clone --depth 1 https://github.com/ggml-org/whisper.cpp wcpp
+          git clone --depth 1 https://github.com/openai/whisper openai-whisper
+          cmake -S wcpp -B wcpp/build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build wcpp/build -j 4 --config Release
+          python3 -m pip install --upgrade pip
+          python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python3 -m pip install "transformers<5" huggingface_hub numpy safetensors
+          python3 scripts/convert_model.py wcpp openai-whisper model-out "$MODEL_QUANT"
+          ls -la model-out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model
+          path: model-out/*.bin
+          retention-days: 3
+
+  # ------------------------------------------------------------------ Windows
+  windows:
+    needs: model
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: model
+          path: models
+      - name: Get whisper.cpp source
+        run: git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp wcpp || git clone --depth 1 https://github.com/ggml-org/whisper.cpp wcpp
+      - name: Build whisper-cli (CPU)
+        run: |
+          set -e
+          cmake -S wcpp -B build-cpu -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_SDL2=OFF \
+            -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+          cmake --build build-cpu --config Release -j 4 --target whisper-cli
+          mkdir -p bin && cp "$(find build-cpu -name whisper-cli.exe | head -1)" bin/whisper-cli.exe
+      - name: Install Vulkan SDK (for GPU build)
+        id: vulkan
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $urls = @("https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe",
+                    "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan_sdk.exe")
+          $ok = $false
+          foreach ($u in $urls) { try { curl.exe -fL -o "$env:RUNNER_TEMP\vk.exe" $u; if ($LASTEXITCODE -eq 0) { $ok = $true; break } } catch {} }
+          if (-not $ok) { throw "Vulkan SDK download failed" }
+          & "$env:RUNNER_TEMP\vk.exe" --accept-licenses --default-answer --confirm-command install
+          $sdk = (Get-ChildItem C:\VulkanSDK | Sort-Object Name -Descending | Select-Object -First 1).FullName
+          Add-Content $env:GITHUB_ENV "VULKAN_SDK=$sdk"
+          Add-Content $env:GITHUB_PATH "$sdk\Bin"
+      - name: Build whisper-cli (GPU / Vulkan)
+        if: steps.vulkan.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -e
+          cmake -S wcpp -B build-vk -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_SDL2=OFF -DGGML_VULKAN=ON \
+            -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+          cmake --build build-vk --config Release -j 4 --target whisper-cli
+          cp "$(find build-vk -name whisper-cli.exe | head -1)" bin/whisper-cli-gpu.exe
+      - name: FFmpeg
+        run: |
+          set -e
+          curl -fL -o ff.zip https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip
+          unzip -q ff.zip -d ff
+          cp ff/*/bin/ffmpeg.exe ff/*/bin/ffprobe.exe bin/
+      - name: Fonts shaping lib + full emoji set
+        run: |
+          python -m pip install zstandard
+          python scripts/get_fribidi.py bin || echo "fribidi skipped"
+          python scripts/fetch_twemoji.py assets/emoji
+      - name: Python deps
+        run: python -m pip install -r requirements-build.txt
+      - name: Smoke test whisper-cli
+        run: ls -la bin models && ./bin/whisper-cli.exe --help | head -5
+      - name: PyInstaller
+        env:
+          APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '0.0.0-dev' }}
+        run: python -m PyInstaller --noconfirm packaging/desicaps.spec
+      - name: Installer (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $v = "${{ github.ref_name }}".TrimStart("v"); if ("${{ github.ref_type }}" -ne "tag") { $v = "0.0.0" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$v" packaging\windows\installer.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/DesiCaps-Windows-Setup.exe
+          retention-days: 7
+
+  # ------------------------------------------------------------------ macOS (Apple Silicon)
+  mac:
+    needs: model
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/download-artifact@v4
+        with:
+          name: model
+          path: models
+      - name: Build whisper-cli (Metal)
+        run: |
+          set -e
+          git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp wcpp || git clone --depth 1 https://github.com/ggml-org/whisper.cpp wcpp
+          cmake -S wcpp -B build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_SDL2=OFF \
+            -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j 4 --config Release --target whisper-cli
+          mkdir -p bin && cp build/bin/whisper-cli bin/whisper-cli
+          otool -L bin/whisper-cli
+      - name: FFmpeg
+        continue-on-error: true
+        run: |
+          set -e
+          for t in ffmpeg ffprobe; do
+            curl -fL -o $t.zip "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/$t.zip"
+            unzip -o -q $t.zip -d bin
+          done
+          chmod +x bin/ffmpeg bin/ffprobe
+          bin/ffmpeg -hide_banner -encoders | grep -E "videotoolbox|libx264" || true
+      - name: Full emoji set
+        run: python scripts/fetch_twemoji.py assets/emoji
+      - name: Python deps
+        run: python -m pip install -r requirements-build.txt
+      - name: PyInstaller
+        env:
+          APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '0.0.0-dev' }}
+        run: python -m PyInstaller --noconfirm packaging/desicaps.spec
+      - name: DMG
+        run: bash packaging/mac/make_dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/DesiCaps-Mac-AppleSilicon.dmg
+          retention-days: 7
+
+  # ------------------------------------------------------------------ release
+  release:
+    if: github.ref_type == 'tag'
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: DesiCaps Studio ${{ github.ref_name }}
+          files: |
+            out/windows/DesiCaps-Windows-Setup.exe
+            out/mac/DesiCaps-Mac-AppleSilicon.dmg
+          body: |
+            **Download:** Windows → `DesiCaps-Windows-Setup.exe` · Mac (M1–M4) → `DesiCaps-Mac-AppleSilicon.dmg`
+
+            Free, open-source Hinglish caption studio. Runs fully offline on your computer.
+            First launch: Windows may show "Windows protected your PC" → click **More info → Run anyway**.
+            Mac: right-click the app → **Open** (or System Settings → Privacy & Security → **Open Anyway**).

@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.userdata/
+exports/
+build/
+dist/
+bin/*
+!bin/.gitkeep
+models/*
+!models/.gitkeep
+hf-model/
+wcpp/
+*.part
+.DS_Store
