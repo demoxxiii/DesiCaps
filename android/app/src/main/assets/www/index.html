@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>DesiCaps</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ================= HOME ================= -->
+<section id="home" class="screen">
+  <header class="home-head">
+    <img src="icon.png" class="logo" alt="">
+    <div>
+      <div class="brand">DesiCaps</div>
+      <div class="sub">Hinglish captions · 100% on your phone</div>
+    </div>
+  </header>
+
+  <button id="pickBtn" class="hero-pick">
+    <span class="hero-icon">
+      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="M16 10l5-3v10l-5-3"/></svg>
+    </span>
+    <span class="hero-title">Choose a video</span>
+    <span class="hero-sub">Reels, Shorts, vlogs — vertical or landscape</span>
+  </button>
+  <p class="hint">Tip: you can also <b>Share</b> a video to DesiCaps from your gallery.</p>
+
+  <div id="resumeCard" class="card resume hidden">
+    <canvas id="resumeThumb" width="54" height="96"></canvas>
+    <div class="grow">
+      <div class="card-title" id="resumeName">Last video</div>
+      <div class="muted small" id="resumeMeta"></div>
+    </div>
+    <button class="btn" id="resumeBtn">Continue</button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div class="grow">
+        <div class="label">Speech model</div>
+        <div class="card-title" id="modelName">Hinglish · Fast</div>
+      </div>
+      <button class="btn ghost" id="modelBtn">Change</button>
+    </div>
+    <div class="label mt">Spelling help <span class="muted">(optional)</span></div>
+    <input id="vocab" class="field" placeholder="Names & brands, e.g. Orange Advisors, GTA 6, Zomato" autocomplete="off">
+  </div>
+
+  <footer class="foot">
+    <span id="versionLbl"></span> · Free &amp; offline · <a href="#" data-url="https://klyn.in">klyn.in</a>
+  </footer>
+</section>
+
+<!-- ================= EDITOR ================= -->
+<section id="editor" class="screen hidden">
+  <header class="bar">
+    <button class="icon-btn" id="backBtn" aria-label="Back">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="bar-title" id="projTitle">Video</div>
+    <button class="btn primary" id="exportBtn">Export</button>
+  </header>
+
+  <div id="stageWrap">
+    <div id="stage">
+      <video id="video" playsinline preload="auto"></video>
+      <canvas id="overlay"></canvas>
+      <div id="playIcon" class="play-icon">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="scrub">
+    <span id="tCur">0:00</span>
+    <input type="range" id="seek" min="0" max="1000" value="0">
+    <span id="tDur">0:00</span>
+  </div>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="style">Style</button>
+    <button class="tab" data-tab="words">Words</button>
+    <button class="tab" data-tab="adjust">Adjust</button>
+  </nav>
+
+  <div class="panels">
+    <div class="panel" id="p-style">
+      <div id="presetGrid" class="preset-grid"></div>
+    </div>
+    <div class="panel hidden" id="p-words">
+      <div class="row gap">
+        <button class="btn ghost small" id="autoBtn">✨ Auto emoji &amp; highlights</button>
+        <button class="btn ghost small" id="clearFxBtn">Clear</button>
+      </div>
+      <p class="muted small">Tap a word to fix spelling, colour it or add an emoji.</p>
+      <div id="wordList" class="word-list"></div>
+    </div>
+    <div class="panel hidden" id="p-adjust">
+      <label class="slider"><span>Size</span><input type="range" id="sizeR" min="40" max="180" step="1"><b id="sizeV"></b></label>
+      <label class="slider"><span>Position</span><input type="range" id="posR" min="0.12" max="0.92" step="0.01"><b id="posV"></b></label>
+      <label class="slider"><span>Words per line</span><input type="range" id="wppR" min="1" max="7" step="1"><b id="wppV"></b></label>
+      <div class="label mt">Highlight colour</div>
+      <div class="swatches" id="swatches"></div>
+      <div class="toggles">
+        <label class="tog"><input type="checkbox" id="upperT"><span>ALL CAPS</span></label>
+        <label class="tog"><input type="checkbox" id="popT"><span>Pop animation</span></label>
+        <label class="tog"><input type="checkbox" id="emojiT"><span>Emojis</span></label>
+      </div>
+      <button class="btn ghost mt full" id="redoBtn">Redo captions with another model</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SHEETS ================= -->
+<div id="scrim" class="scrim hidden"></div>
+
+<div id="modelSheet" class="sheet hidden">
+  <div class="grab"></div>
+  <h3>Speech model</h3>
+  <p class="muted small">Everything runs on your phone. Bigger models are more accurate but slower.</p>
+  <div id="modelList"></div>
+  <div class="muted small" id="cpuLbl"></div>
+</div>
+
+<div id="wordSheet" class="sheet hidden">
+  <div class="grab"></div>
+  <div class="row"><h3 class="grow">Edit word</h3><span class="muted small" id="wTime"></span></div>
+  <input id="wText" class="field big" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="label mt">Colour</div>
+  <div class="seg" id="hlSeg">
+    <button data-hl="0">Normal</button>
+    <button data-hl="1" class="hl1">Green</button>
+    <button data-hl="2" class="hl2">Red</button>
+  </div>
+  <div class="label mt">Emoji</div>
+  <div id="emojiGrid" class="emoji-grid"></div>
+  <div class="row gap mt">
+    <button class="btn ghost" id="wPrev">‹ Prev</button>
+    <button class="btn ghost danger" id="wDel">Delete</button>
+    <button class="btn ghost" id="wNext">Next ›</button>
+    <div class="grow"></div>
+    <button class="btn primary" id="wDone">Done</button>
+  </div>
+</div>
+
+<div id="doneSheet" class="sheet hidden">
+  <div class="grab"></div>
+  <div class="done-badge">✓</div>
+  <h3 class="center">Saved to your gallery</h3>
+  <p class="muted small center">Movies › DesiCaps</p>
+  <div class="row gap mt">
+    <button class="btn wide" id="openBtn">Play</button>
+    <button class="btn primary wide" id="shareBtn">Share</button>
+  </div>
+</div>
+
+<!-- ================= BUSY ================= -->
+<div id="busy" class="busy hidden">
+  <div class="busy-card">
+    <div class="spinner"></div>
+    <div class="busy-msg" id="busyMsg">Working…</div>
+    <div class="bar-track"><div class="bar-fill" id="busyBar"></div></div>
+    <div class="muted small" id="busySub"></div>
+    <button class="btn ghost" id="busyCancel">Cancel</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="engine.js"></script>
+<script src="mock.js"></script>
+<script src="mobile.js"></script>
+</body>
+</html>

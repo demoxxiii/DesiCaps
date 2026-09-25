@@ -171,24 +171,47 @@ jobs:
           path: dist/DesiCaps-Mac-AppleSilicon.dmg
           retention-days: 7
 
+  # ------------------------------------------------------------------ Android
+  android:
+    uses: ./.github/workflows/android.yml
+    with:
+      for_release: true
+    secrets: inherit
+
   # ------------------------------------------------------------------ release
   release:
     if: github.ref_type == 'tag'
-    needs: [windows, mac]
+    needs: [windows, mac, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           path: out
+      - name: Speech models for the phone app (release "models-v1", created once)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la out/*
+          if gh release view models-v1 >/dev/null 2>&1; then
+            echo "models-v1 already published"
+          else
+            gh release create models-v1 out/model/*.bin --target "${{ github.sha }}" --latest=false \
+              --title "Speech models (downloaded inside the Android app)" \
+              --notes "Optional speech models the DesiCaps Android app downloads when you pick them. You don't need to download these yourself."
+          fi
       - uses: softprops/action-gh-release@v2
         with:
           name: DesiCaps Studio ${{ github.ref_name }}
+          make_latest: true
           files: |
             out/windows/DesiCaps-Windows-Setup.exe
             out/mac/DesiCaps-Mac-AppleSilicon.dmg
+            out/android/DesiCaps-Android.apk
           body: |
-            **Download:** Windows → `DesiCaps-Windows-Setup.exe` · Mac (M1–M4) → `DesiCaps-Mac-AppleSilicon.dmg`
+            **Download:** Windows → `DesiCaps-Windows-Setup.exe` · Mac (M1–M4) → `DesiCaps-Mac-AppleSilicon.dmg` · Android → `DesiCaps-Android.apk`
 
             Free, open-source Hinglish caption studio. Runs fully offline on your computer.
             First launch: Windows may show "Windows protected your PC" → click **More info → Run anyway**.
             Mac: right-click the app → **Open** (or System Settings → Privacy & Security → **Open Anyway**).
+            Android: open the APK on your phone and allow "Install unknown apps" when asked.

@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 HF_MODEL = os.environ.get("HF_MODEL", "Oriserve/Whisper-Hindi2Hinglish-Apex")
-OUT_NAME = "ggml-hinglish-apex-{q}.bin"
+OUT_NAME = os.environ.get("OUT_NAME", "ggml-hinglish-apex-{q}.bin")
 
 
 def main():

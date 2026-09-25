@@ -1,0 +1,72 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+}
+
+// version comes from CI (APP_VERSION=v1.2.3 or 1.2.3-test.7); local builds use 0.0.1
+def appVersion = (System.getenv("APP_VERSION") ?: "0.0.1").replaceFirst("^v", "")
+def vm = (appVersion =~ /^(\d+)\.(\d+)\.(\d+)/)
+def vParts = vm.find() ? [vm.group(1) as int, vm.group(2) as int, vm.group(3) as int] : [0, 0, 1]
+def (vMaj, vMin, vPat) = vParts
+
+android {
+    namespace "app.desicaps"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "in.klyn.desicaps"
+        minSdk 29
+        targetSdk 35
+        versionCode vMaj * 10000 + vMin * 100 + vPat
+        versionName appVersion
+        ndk { abiFilters "arm64-v8a" }
+        externalNativeBuild {
+            cmake { arguments "-DANDROID_STL=c++_static" }
+        }
+    }
+
+    signingConfigs {
+        release {
+            def ks = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (ks && file(ks).exists()) {
+                storeFile file(ks)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            def ks = System.getenv("ANDROID_KEYSTORE_FILE")
+            signingConfig (ks && file(ks).exists()) ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+            version "3.22.1"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+
+    androidResources { noCompress += ["bin", "mp4"] }
+    packaging { jniLibs { useLegacyPackaging = false } }
+}
+
+dependencies {
+    implementation "androidx.core:core-ktx:1.13.1"
+    implementation "androidx.activity:activity-ktx:1.9.3"
+    implementation "androidx.webkit:webkit:1.12.1"
+    implementation "androidx.media3:media3-transformer:1.5.0"
+    implementation "androidx.media3:media3-effect:1.5.0"
+    implementation "androidx.media3:media3-common:1.5.0"
+}

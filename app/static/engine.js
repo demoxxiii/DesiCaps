@@ -76,6 +76,16 @@ const DC = (() => {
     const im = emojiCache[code];
     return im.complete && im.naturalWidth ? im : null;
   }
+  // resolves once every emoji image is decoded (used before exporting frames)
+  function preloadEmoji(codes) {
+    return Promise.all(codes.map(code => new Promise(res => {
+      const im = emojiImg(code, null);
+      if (im) return res();
+      const el = emojiCache[code];
+      el.addEventListener("load", () => res(), { once: true });
+      el.addEventListener("error", () => res(), { once: true });
+    })));
+  }
 
   const mctx = document.createElement("canvas").getContext("2d");
   function fontStr(st, px) { return `${Math.max(1, Math.round(px))}px "${st.font}"`; }
@@ -223,5 +233,5 @@ const DC = (() => {
     return pi;
   }
 
-  return { regroup, pages, draw, layout, loadFont, displayText, activeIndex, PAGE_IN };
+  return { regroup, pages, draw, layout, loadFont, displayText, activeIndex, preloadEmoji, PAGE_IN };
 })();

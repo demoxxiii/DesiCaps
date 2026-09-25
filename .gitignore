@@ -12,3 +12,20 @@ hf-model/
 wcpp/
 *.part
 .DS_Store
+
+# Android: generated / downloaded at build time
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+android/app/src/main/cpp/whisper.cpp/
+android/app/src/main/assets/models/
+android/app/src/main/assets/www/engine.js
+android/app/src/main/assets/www/presets.json
+android/app/src/main/assets/www/icon.png
+android/app/src/main/assets/www/fonts/
+android/app/src/main/assets/www/emoji/
+*.keystore
+*.jks
+android-signing/

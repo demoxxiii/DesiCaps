@@ -1,0 +1,148 @@
+name: Android app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "app/static/engine.js"
+      - "app/presets.json"
+      - "scripts/sync_android_web.py"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+  workflow_call:          # used by build.yml when publishing a release
+    inputs:
+      for_release:
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  WCPP_REF: v1.8.5
+
+jobs:
+  # ---------------------------------------------------------------- small Hinglish model bundled in the APK
+  swift_model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: cache
+        uses: actions/cache@v4
+        with:
+          path: model-out
+          key: swift-model-q8_0-${{ env.WCPP_REF }}-v1
+      - name: Convert Whisper-Hindi2Hinglish-Swift to whisper.cpp format
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          HF_MODEL: Oriserve/Whisper-Hindi2Hinglish-Swift
+          OUT_NAME: ggml-hinglish-swift-{q}.bin
+        run: |
+          set -e
+          git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp wcpp
+          git clone --depth 1 https://github.com/openai/whisper openai-whisper
+          cmake -S wcpp -B wcpp/build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build wcpp/build -j 4 --config Release
+          python3 -m pip install --upgrade pip
+          python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python3 -m pip install "transformers<5" huggingface_hub numpy safetensors
+          python3 scripts/convert_model.py wcpp openai-whisper model-out q8_0
+          ls -la model-out
+          # sanity check: transcribe one of the model card's Hindi samples with DTW timing
+          python3 -c "from huggingface_hub import hf_hub_download as d; print(d('$HF_MODEL','audios/common_voice_hi_23796065.mp3', local_dir='smp'))"
+          ffmpeg -v error -y -i smp/audios/common_voice_hi_23796065.mp3 -ar 16000 -ac 1 -c:a pcm_s16le smp/a.wav
+          ./wcpp/build/bin/whisper-cli -m model-out/ggml-hinglish-swift-q8_0.bin -f smp/a.wav -l en --dtw base -nfa -ojf -of smp/out -np
+          echo "::notice::Swift model sample: $(python3 -c "import json;d=json.load(open('smp/out.json'));print(' '.join(s['text'] for s in d['transcription']))")"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: swift-model
+          path: model-out/*.bin
+          retention-days: 3
+
+  # ---------------------------------------------------------------- APK
+  apk:
+    needs: swift_model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/download-artifact@v4
+        with:
+          name: swift-model
+          path: android/app/src/main/assets/models
+      - name: whisper.cpp source + shared web assets
+        run: |
+          set -e
+          git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp android/app/src/main/cpp/whisper.cpp
+          python3 scripts/sync_android_web.py
+          ls -la android/app/src/main/assets/models android/app/src/main/assets/www
+      - name: Version
+        id: ver
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "v=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo v1.0.0)
+            IFS=. read -r a b c <<< "${last#v}"
+            echo "v=$a.$b.$((c+1))-test.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Signing key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "Release key: yes"
+          else
+            echo "::warning::No ANDROID_KEYSTORE_B64 secret - building with a throwaway debug key"
+          fi
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build APK
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.v }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          gradle -p android assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+      - name: Show build errors
+        if: failure()
+        run: |
+          # surface compiler / CMake errors as annotations (readable without signing in)
+          grep -E "^e: |error:|Error:|What went wrong|FAILED|CMake Error|undefined reference|Could not" build.log \
+            | grep -v "^\s*at " | head -40 | while IFS= read -r l; do echo "::error::${l:0:900}"; done || true
+          tail -60 build.log
+      - name: Collect APK
+        run: |
+          set -e
+          apk=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          cp "$apk" DesiCaps-Android.apk
+          ls -la DesiCaps-Android.apk
+          unzip -l DesiCaps-Android.apk | grep -E "\.so|models/" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: DesiCaps-Android.apk
+          retention-days: 7
+      - name: Publish test build (pre-release "android-test")
+        if: ${{ !inputs.for_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-test
+          name: Android test build
+          prerelease: true
+          make_latest: false
+          files: DesiCaps-Android.apk
+          body: |
+            Test build ${{ steps.ver.outputs.v }} of the DesiCaps Android app (not a final release).
+            Install: download DesiCaps-Android.apk on your phone, open it, and allow "Install unknown apps" when asked.

@@ -42,7 +42,7 @@ echo  Signed in as: %LOGIN%
 
 rem ---- build workflow (kept in packaging\github; copied into place here) ---------
 if not exist ".github\workflows" mkdir ".github\workflows"
-copy /y "packaging\github\build.yml" ".github\workflows\build.yml" >nul
+copy /y "packaging\github\*.yml" ".github\workflows\" >nul
 
 if not exist ".git" (
   rem ======== first publish ========
@@ -61,6 +61,7 @@ if not exist ".git" (
   for /f "delims=" %%t in ('call "%GIT%" describe --tags --abbrev^=0 2^>nul') do set "LAST=%%t"
   for /f "delims=" %%v in ('powershell -NoProfile -Command "$p='!LAST!'.TrimStart('v').Split('.'); 'v{0}.{1}.{2}' -f $p[0],$p[1],([int]$p[2]+1)"') do set "VERSION=%%v"
   echo  Publishing new version !VERSION! ^(previous: !LAST!^)
+  call :android_secrets "%LOGIN%/!REPO!"
   "%GIT%" add -A
   "%GIT%" -c user.name="%LOGIN%" -c user.email="%LOGIN%@users.noreply.github.com" commit -q -m "Release !VERSION!"
   "%GIT%" push -q origin HEAD
@@ -70,7 +71,7 @@ if not exist ".git" (
 "%GIT%" push -q origin !VERSION! || (echo Tag push failed. & pause & exit /b 1)
 
 echo.
-echo  DONE!  GitHub is now building DesiCaps !VERSION! for Windows and Mac (about 30-60 minutes).
+echo  DONE!  GitHub is now building DesiCaps !VERSION! for Windows, Mac and Android (about 30-60 minutes).
 echo    Progress :  https://github.com/%LOGIN%/!REPO!/actions
 echo    Downloads:  https://github.com/%LOGIN%/!REPO!/releases/latest
 echo.
@@ -78,3 +79,13 @@ echo  website\index.html now points at your downloads - upload it (with icon.png
 echo %LOGIN%/!REPO!> published_repo.txt
 start "" "https://github.com/%LOGIN%/!REPO!/actions"
 timeout /t 30
+exit /b 0
+
+rem ---- upload the Android signing key to GitHub secrets (only once) --------------
+:android_secrets
+if not exist "android-signing\keystore.b64" exit /b 0
+"%GH%" secret list --repo %~1 2>nul | findstr /b "ANDROID_KEYSTORE_B64" >nul && exit /b 0
+echo  Uploading the Android signing key to GitHub secrets (one time)...
+"%GH%" secret set ANDROID_KEYSTORE_B64 --repo %~1 < "android-signing\keystore.b64"
+for /f "usebackq tokens=1,* delims==" %%a in ("android-signing\signing.properties") do "%GH%" secret set %%a --repo %~1 --body "%%b"
+exit /b 0
