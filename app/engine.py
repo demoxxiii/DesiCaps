@@ -158,6 +158,12 @@ def emoji_img(code, px):
     return im.resize((max(1, int(px)), max(1, int(px))), Image.LANCZOS)
 
 
+def baseline_shift(fnt):
+    """Offset from a line's vertical centre to its baseline (same rule as engine.js)."""
+    asc, desc = fnt.getmetrics()
+    return (asc - desc) / 2
+
+
 # ---------------------------------------------------------------- layout
 def unit(W, H):
     return min(W, H) / 1080.0

@@ -373,6 +373,7 @@ def install_fonts():
 # ---------------------------------------------------------------- AI enhance (local Ollama)
 @app.get("/api/ollama/models")
 def ollama_models():
+    ensure_ollama()
     try:
         with urllib.request.urlopen(CONFIG["ollama_url"] + "/api/tags", timeout=3) as r:
             names = [m["name"] for m in json.load(r).get("models", [])]
@@ -383,8 +384,49 @@ def ollama_models():
     return sorted(names, key=lambda n: (n != pref, n))
 
 
+def _ollama_up():
+    try:
+        with urllib.request.urlopen(CONFIG["ollama_url"] + "/api/version", timeout=2):
+            return True
+    except Exception:
+        return False
+
+
+def ensure_ollama():
+    """If Ollama is installed but not running, start it quietly (waits up to ~8 s)."""
+    if _ollama_up():
+        return True
+    import subprocess
+    try:
+        if paths.IS_WIN:
+            exe = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe")
+            exe = exe if os.path.isfile(exe) else shutil.which("ollama")
+            if not exe:
+                return False
+            subprocess.Popen([exe, "serve"], **paths.hidden_console())
+        elif paths.IS_MAC:
+            if os.path.isdir("/Applications/Ollama.app"):
+                subprocess.Popen(["open", "-g", "-a", "Ollama"])
+            elif shutil.which("ollama"):
+                subprocess.Popen([shutil.which("ollama"), "serve"])
+            else:
+                return False
+        else:
+            if not shutil.which("ollama"):
+                return False
+            subprocess.Popen(["ollama", "serve"])
+    except Exception:
+        return False
+    for _ in range(16):
+        time.sleep(0.5)
+        if _ollama_up():
+            return True
+    return False
+
+
 @app.get("/api/ollama/status")
 def ollama_status():
+    ensure_ollama()
     try:
         with urllib.request.urlopen(CONFIG["ollama_url"] + "/api/version", timeout=2) as r:
             ver = json.load(r).get("version")

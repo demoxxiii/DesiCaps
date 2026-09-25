@@ -26,7 +26,7 @@ Transcript:
 
 def make_kit(words, url, model, progress=None):
     if not model:
-        raise RuntimeError("No Ollama model selected - open "Local AI setup" on the home screen")
+        raise RuntimeError("No Ollama model selected - open 'Local AI setup' on the home screen")
     text = " ".join(w["text"] for w in words)
     if not text.strip():
         raise RuntimeError("Transcribe the video first")

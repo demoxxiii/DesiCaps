@@ -45,7 +45,7 @@ def call(url, model, prompt):
 
 def enhance(words, url, model, progress=None, fix_spelling=False, batch=40):
     if not model:
-        raise RuntimeError("No Ollama model selected - open "Local AI setup" on the home screen")
+        raise RuntimeError("No Ollama model selected - open 'Local AI setup' on the home screen")
     pgs = engine.pages(words)
     for b in range(0, len(pgs), batch):
         chunk = pgs[b:b + batch]
