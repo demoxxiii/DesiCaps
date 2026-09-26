@@ -154,6 +154,41 @@ class Exporter(private val ctx: Context) {
         }
     }
 
+    private var previewTr: Transformer? = null
+
+    /** Makes a light 720p H.264 copy for the editor preview (for HEVC/HDR/4K videos some WebViews can't play). */
+    fun preview(input: File, outW: Int, outH: Int, out: File, onDone: () -> Unit, onError: (String) -> Unit) {
+        main.post {
+            try {
+                out.delete()
+                val item = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(input)))
+                    .setEffects(Effects(listOf<AudioProcessor>(),
+                        listOf<Effect>(Presentation.createForWidthAndHeight(outW, outH, Presentation.LAYOUT_SCALE_TO_FIT))))
+                    .build()
+                val composition = Composition.Builder(EditedMediaItemSequence(listOf(item)))
+                    .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL)
+                    .build()
+                val tr = Transformer.Builder(ctx)
+                    .setVideoMimeType(MimeTypes.VIDEO_H264)
+                    .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                    .addListener(object : Transformer.Listener {
+                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                            previewTr = null; onDone()
+                        }
+                        override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
+                            previewTr = null; onError(exportException.message ?: exportException.errorCodeName)
+                        }
+                    })
+                    .build()
+                previewTr = tr
+                tr.start(composition, out.absolutePath)
+            } catch (e: Exception) {
+                previewTr = null
+                onError(e.message ?: e.toString())
+            }
+        }
+    }
+
     private fun saveToGallery(file: File, name: String): String {
         val resolver = ctx.contentResolver
         val values = ContentValues().apply {

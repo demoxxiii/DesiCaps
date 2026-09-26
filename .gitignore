@@ -29,3 +29,9 @@ android/app/src/main/assets/www/emoji/
 *.keystore
 *.jks
 android-signing/
+ios/DesiCaps/www/
+ios/DesiCaps/models/
+ios/DesiCaps.xcodeproj/
+ios/whisper-ios/
+ios/whisper.xcconfig
+ios/build/

@@ -20,6 +20,12 @@ def main():
     for f in glob.glob(os.path.join(ROOT, "assets", "emoji", "*.png")):
         shutil.copy(f, os.path.join(WWW, "emoji")); n += 1
     print("synced", n, "fonts/emoji into", WWW)
+    # the iPhone app uses the very same web UI
+    ios = os.path.join(ROOT, "ios", "DesiCaps", "www")
+    if os.path.isdir(os.path.join(ROOT, "ios")):
+        shutil.rmtree(ios, ignore_errors=True)
+        shutil.copytree(WWW, ios)
+        print("mirrored web UI into", ios)
 
 
 if __name__ == "__main__":

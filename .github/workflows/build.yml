@@ -178,10 +178,18 @@ jobs:
       for_release: true
     secrets: inherit
 
+  # ------------------------------------------------------------------ iPhone (unsigned .ipa for sideloading)
+  ios:
+    uses: ./.github/workflows/ios.yml
+    with:
+      for_release: true
+    secrets: inherit
+
   # ------------------------------------------------------------------ release
   release:
-    if: github.ref_type == 'tag'
-    needs: [windows, mac, android]
+    # the iPhone build is optional: a failed .ipa never blocks the Windows/Mac/Android release
+    if: ${{ github.ref_type == 'tag' && !cancelled() && needs.windows.result == 'success' && needs.mac.result == 'success' && needs.android.result == 'success' }}
+    needs: [windows, mac, android, ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -193,12 +201,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           ls -la out/*
-          if gh release view models-v1 >/dev/null 2>&1; then
+          if gh release view models-v1 --json assets -q '.assets[].name' 2>/dev/null | grep -q ggml-hinglish-apex; then
             echo "models-v1 already published"
           else
-            gh release create models-v1 out/model/*.bin --target "${{ github.sha }}" --latest=false \
-              --title "Speech models (downloaded inside the Android app)" \
-              --notes "Optional speech models the DesiCaps Android app downloads when you pick them. You don't need to download these yourself."
+            gh release view models-v1 >/dev/null 2>&1 || gh release create models-v1 --target "${{ github.sha }}" --latest=false \
+              --title "Speech models (downloaded inside the phone apps)" \
+              --notes "Optional speech models the DesiCaps phone apps download when you pick them. You don't need to download these yourself."
+            gh release upload models-v1 out/model/*.bin --clobber
           fi
       - uses: softprops/action-gh-release@v2
         with:
@@ -208,10 +217,13 @@ jobs:
             out/windows/DesiCaps-Windows-Setup.exe
             out/mac/DesiCaps-Mac-AppleSilicon.dmg
             out/android/DesiCaps-Android.apk
+            out/ios/DesiCaps-iOS.ipa
+          fail_on_unmatched_files: false
           body: |
-            **Download:** Windows → `DesiCaps-Windows-Setup.exe` · Mac (M1–M4) → `DesiCaps-Mac-AppleSilicon.dmg` · Android → `DesiCaps-Android.apk`
+            **Download:** Windows → `DesiCaps-Windows-Setup.exe` · Mac (M1–M4) → `DesiCaps-Mac-AppleSilicon.dmg` · Android → `DesiCaps-Android.apk` · iPhone (sideload) → `DesiCaps-iOS.ipa`
 
             Free, open-source Hinglish caption studio. Runs fully offline on your computer.
             First launch: Windows may show "Windows protected your PC" → click **More info → Run anyway**.
             Mac: right-click the app → **Open** (or System Settings → Privacy & Security → **Open Anyway**).
             Android: open the APK on your phone and allow "Install unknown apps" when asked.
+            iPhone: install the .ipa with Sideloadly or AltStore using your Apple ID.

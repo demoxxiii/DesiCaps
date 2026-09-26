@@ -3,7 +3,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 title DesiCaps - Android test build
 echo.
-echo  ===  Send the latest changes to GitHub and build an Android TEST version  ===
+echo  ===  Send the latest changes to GitHub and build Android + iPhone TEST versions  ===
 echo       (no new release - the APK appears under "Android test build" on GitHub)
 echo.
 set "GIT=git"
@@ -22,7 +22,7 @@ set "OK="
 for /l %%n in (1,1,4) do if not defined OK ( "%GIT%" push -q origin HEAD && set "OK=1" || (echo  Network hiccup - retrying in 5 seconds... & timeout /t 5 >nul) )
 if not defined OK (echo Push failed - check your internet and run this again. & pause & exit /b 1)
 echo.
-echo  DONE - GitHub is building the Android test app (about 15-25 minutes).
+echo  DONE - GitHub is building the Android and iPhone test apps (about 20-40 minutes).
 echo    Progress : https://github.com/%LOGIN%/!REPO!/actions
 echo    Download : https://github.com/%LOGIN%/!REPO!/releases/tag/android-test
 start "" "https://github.com/%LOGIN%/!REPO!/actions"

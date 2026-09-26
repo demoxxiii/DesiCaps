@@ -68,6 +68,42 @@ jobs:
           path: model-out/*.bin
           retention-days: 3
 
+  # ---------------------------------------------------------------- optional big models (release "models-v1", made once)
+  models_release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: have
+        run: |
+          if gh release view models-v1 --json assets -q '.assets[].name' 2>/dev/null | grep -q ggml-hinglish-apex-q5_0.bin; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"; echo "models-v1 already published"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Convert Whisper-Hindi2Hinglish-Apex (the PC model) for phone download
+        if: steps.have.outputs.exists != 'true'
+        env:
+          HF_MODEL: Oriserve/Whisper-Hindi2Hinglish-Apex
+          OUT_NAME: ggml-hinglish-apex-{q}.bin
+        run: |
+          set -e
+          git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp wcpp
+          git clone --depth 1 https://github.com/openai/whisper openai-whisper
+          cmake -S wcpp -B wcpp/build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build wcpp/build -j 4 --config Release
+          python3 -m pip install --upgrade pip
+          python3 -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python3 -m pip install "transformers<5" huggingface_hub numpy safetensors
+          python3 scripts/convert_model.py wcpp openai-whisper model-out q5_0
+          ls -la model-out
+          gh release view models-v1 >/dev/null 2>&1 || gh release create models-v1 --target "${{ github.sha }}" --latest=false \
+            --title "Speech models (downloaded inside the phone apps)" \
+            --notes "Optional speech models the DesiCaps phone apps download when you pick them. You don't need to download these yourself."
+          gh release upload models-v1 model-out/ggml-hinglish-apex-q5_0.bin --clobber
+
   # ---------------------------------------------------------------- APK
   apk:
     needs: swift_model

@@ -1,0 +1,122 @@
+name: iPhone app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "android/app/src/main/assets/www/**"
+      - "app/static/engine.js"
+      - "app/presets.json"
+      - "scripts/sync_android_web.py"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      for_release:
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  WCPP_REF: v1.8.5
+
+jobs:
+  ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bundled Hinglish model (same file as the Android app)
+        id: model
+        uses: actions/cache@v4
+        with:
+          path: model-out
+          key: swift-model-q8_0-${{ env.WCPP_REF }}-v1
+      - name: Convert model if not cached
+        if: steps.model.outputs.cache-hit != 'true'
+        env:
+          HF_MODEL: Oriserve/Whisper-Hindi2Hinglish-Swift
+          OUT_NAME: ggml-hinglish-swift-{q}.bin
+        run: |
+          set -e
+          git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp wcpp-host
+          git clone --depth 1 https://github.com/openai/whisper openai-whisper
+          cmake -S wcpp-host -B wcpp-host/build -DBUILD_SHARED_LIBS=OFF -DWHISPER_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build wcpp-host/build -j 4 --config Release
+          python3 -m venv venv && . venv/bin/activate
+          pip install torch "transformers<5" huggingface_hub numpy safetensors
+          python3 scripts/convert_model.py wcpp-host openai-whisper model-out q8_0
+      - name: whisper.cpp for iPhone (Metal)
+        run: |
+          set -e
+          git clone --depth 1 --branch "$WCPP_REF" https://github.com/ggml-org/whisper.cpp wcpp
+          cmake -S wcpp -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphoneos -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=16.0 -DCMAKE_XCODE_ATTRIBUTE_SUPPORTED_PLATFORMS=iphoneos \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO \
+            -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF -DGGML_OPENMP=OFF \
+            -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON -DGGML_BLAS_DEFAULT=ON \
+            -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF -DWHISPER_COREML=OFF \
+            -DCMAKE_C_FLAGS="-Wno-shorten-64-to-32" -DCMAKE_CXX_FLAGS="-Wno-shorten-64-to-32"
+          cmake --build build-ios --config Release -- -quiet
+          mkdir -p ios/whisper-ios/lib ios/whisper-ios/include
+          find build-ios -name "*.a" -path "*Release-iphoneos*" -exec cp {} ios/whisper-ios/lib/ \;
+          cp wcpp/include/*.h wcpp/ggml/include/*.h ios/whisper-ios/include/
+          ls -la ios/whisper-ios/lib
+          libtool -static -o ios/whisper-ios/libwhisper-all.a ios/whisper-ios/lib/*.a
+          printf 'HEADER_SEARCH_PATHS = $(inherited) $(SRCROOT)/whisper-ios/include\nOTHER_LDFLAGS = $(inherited) $(SRCROOT)/whisper-ios/libwhisper-all.a -lc++\n' > ios/whisper.xcconfig
+      - name: Web UI + model into the app
+        run: |
+          set -e
+          python3 scripts/sync_android_web.py
+          mkdir -p ios/DesiCaps/models
+          cp model-out/ggml-hinglish-swift-q8_0.bin ios/DesiCaps/models/
+      - name: Version
+        id: ver
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then v="${{ github.ref_name }}"; v="${v#v}"
+          else last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || echo v1.0.0); IFS=. read -r a b c <<< "${last#v}"; v="$a.$b.$((c+1))"; fi
+          echo "v=$v" >> "$GITHUB_OUTPUT"
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          brew install xcodegen >/dev/null
+          cd ios && xcodegen generate
+          xcodebuild -project DesiCaps.xcodeproj -scheme DesiCaps -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION=${{ steps.ver.outputs.v }} CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build 2>&1 | tee ../build.log | grep -E "error:|warning: unused|BUILD" || true
+          test -d build/Build/Products/Release-iphoneos/DesiCaps.app
+      - name: Show build errors
+        if: failure()
+        run: |
+          grep -E "error:|Undefined symbol|ld: " build.log | sort -u | head -40 | while IFS= read -r l; do echo "::error::${l:0:900}"; done || true
+          tail -40 build.log || true
+      - name: Package IPA
+        run: |
+          set -e
+          mkdir -p Payload
+          cp -R ios/build/Build/Products/Release-iphoneos/DesiCaps.app Payload/
+          zip -qry DesiCaps-iOS.ipa Payload
+          ls -la DesiCaps-iOS.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios
+          path: DesiCaps-iOS.ipa
+          retention-days: 7
+      - name: Publish test build (pre-release "ios-test")
+        if: ${{ !inputs.for_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ios-test
+          name: iPhone test build
+          prerelease: true
+          make_latest: false
+          files: DesiCaps-iOS.ipa
+          body: |
+            Test build ${{ steps.ver.outputs.v }} of the DesiCaps iPhone app (unsigned .ipa).
+            Install with Sideloadly or AltStore using your Apple ID (free Apple IDs need a re-install every 7 days).

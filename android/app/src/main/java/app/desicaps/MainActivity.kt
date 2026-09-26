@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private var framesDir: File? = null
     private var pendingShare: Uri? = null
     private var pageReady = false
+    private val server by lazy { LocalServer(File(cacheDir, "media").apply { mkdirs() }) }
 
     private val picker = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) emit(JSONObject().put("type", "pickCancelled")) else importVideo(uri)
@@ -58,7 +59,19 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         web = WebView(this)
-        setContentView(web)
+        // Android 15+ draws apps edge-to-edge: keep the page clear of the status bar, notch,
+        // navigation bar and keyboard by padding the container with the system insets.
+        val root = android.widget.FrameLayout(this)
+        root.setBackgroundColor(0xFF0E0E12.toInt())
+        root.addView(web, android.widget.FrameLayout.LayoutParams(-1, -1))
+        setContentView(root)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
+            val t = androidx.core.view.WindowInsetsCompat.Type
+            val bars = insets.getInsets(t.systemBars() or t.displayCutout())
+            val ime = insets.getInsets(t.ime())
+            v.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
+            androidx.core.view.WindowInsetsCompat.CONSUMED
+        }
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -66,6 +79,8 @@ class MainActivity : ComponentActivity() {
             allowFileAccess = false
             allowContentAccess = false
             textZoom = 100
+            // the preview video streams from a local 127.0.0.1 server (see LocalServer)
+            mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         }
         WebView.setWebContentsDebuggingEnabled(true)
         web.setBackgroundColor(0xFF0E0E12.toInt())
@@ -118,6 +133,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        server.close()
         web.destroy()
         super.onDestroy()
     }
@@ -229,7 +245,7 @@ class MainActivity : ComponentActivity() {
                 contentResolver.openInputStream(uri)!!.use { i -> f.outputStream().use { o -> i.copyTo(o, 1 shl 20) } }
                 val info = probe(f)
                 info.put("type", "picked").put("name", name.substringBeforeLast('.'))
-                    .put("file", f.name).put("url", "$ORIGIN/media/${f.name}")
+                    .put("file", f.name).put("url", server.url(f.name))
                 emit(info)
             } catch (e: Exception) { emitError("pickError", e) }
         }
@@ -244,19 +260,28 @@ class MainActivity : ComponentActivity() {
             val rot = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
             val dur = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
             var fps = 30f
+            var codec = ""
+            var hdr = false
             try {
                 val ex = MediaExtractor(); ex.setDataSource(f.absolutePath)
                 for (i in 0 until ex.trackCount) {
                     val tf = ex.getTrackFormat(i)
-                    if ((tf.getString(MediaFormat.KEY_MIME) ?: "").startsWith("video/") && tf.containsKey(MediaFormat.KEY_FRAME_RATE)) {
+                    val mime = tf.getString(MediaFormat.KEY_MIME) ?: ""
+                    if (!mime.startsWith("video/")) continue
+                    codec = mime
+                    if (tf.containsKey(MediaFormat.KEY_FRAME_RATE)) {
                         fps = try { tf.getInteger(MediaFormat.KEY_FRAME_RATE).toFloat() } catch (e: Exception) { tf.getFloat(MediaFormat.KEY_FRAME_RATE) }
+                    }
+                    if (tf.containsKey(MediaFormat.KEY_COLOR_TRANSFER)) {
+                        val t = tf.getInteger(MediaFormat.KEY_COLOR_TRANSFER)
+                        hdr = t == MediaFormat.COLOR_TRANSFER_ST2084 || t == MediaFormat.COLOR_TRANSFER_HLG
                     }
                 }
                 ex.release()
             } catch (_: Exception) {}
             val swap = rot == 90 || rot == 270
             return JSONObject().put("width", if (swap) h else w).put("height", if (swap) w else h)
-                .put("duration", dur / 1000.0).put("fps", fps.toDouble())
+                .put("duration", dur / 1000.0).put("fps", fps.toDouble()).put("codec", codec).put("hdr", hdr)
         } finally { r.release() }
     }
 
@@ -270,6 +295,21 @@ class MainActivity : ComponentActivity() {
         @JavascriptInterface fun pickVideo() = runOnUiThread {
             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
         }
+
+        @JavascriptInterface fun makePreview(file: String, w: Int, h: Int) {
+            val dir = File(cacheDir, "media")
+            val src = File(dir, file)
+            val out = File(dir, "preview_" + file.substringBeforeLast('.') + ".mp4")
+            if (out.exists() && out.length() > 10_000) {
+                emit(JSONObject().put("type", "preview").put("file", file).put("url", server.url(out.name))); return
+            }
+            val tmp = File(dir, "tmp_" + out.name)
+            exporter.preview(src, w, h, tmp,
+                onDone = { tmp.renameTo(out); emit(JSONObject().put("type", "preview").put("file", file).put("url", server.url(out.name))) },
+                onError = { msg -> emit(JSONObject().put("type", "previewError").put("file", file).put("message", msg)) })
+        }
+
+        @JavascriptInterface fun mediaUrl(file: String): String = server.url(file)
 
         @JavascriptInterface fun hasVideo(file: String): Boolean = File(File(cacheDir, "media"), file).exists()
 

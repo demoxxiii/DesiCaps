@@ -26,7 +26,7 @@
     <span class="hero-title">Choose a video</span>
     <span class="hero-sub">Reels, Shorts, vlogs — vertical or landscape</span>
   </button>
-  <p class="hint">Tip: you can also <b>Share</b> a video to DesiCaps from your gallery.</p>
+  <p class="hint ios-hide">Tip: you can also <b>Share</b> a video to DesiCaps from your gallery.</p>
 
   <div id="resumeCard" class="card resume hidden">
     <canvas id="resumeThumb" width="54" height="96"></canvas>
@@ -68,6 +68,7 @@
     <div id="stage">
       <video id="video" playsinline preload="auto"></video>
       <canvas id="overlay"></canvas>
+      <div id="stageMsg" class="stage-msg"></div>
       <div id="playIcon" class="play-icon">
         <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       </div>
@@ -148,8 +149,8 @@
 <div id="doneSheet" class="sheet hidden">
   <div class="grab"></div>
   <div class="done-badge">✓</div>
-  <h3 class="center">Saved to your gallery</h3>
-  <p class="muted small center">Movies › DesiCaps</p>
+  <h3 class="center" id="doneTitle">Saved to your gallery</h3>
+  <p class="muted small center" id="doneSub">Movies › DesiCaps</p>
   <div class="row gap mt">
     <button class="btn wide" id="openBtn">Play</button>
     <button class="btn primary wide" id="shareBtn">Share</button>
@@ -170,6 +171,7 @@
 <div id="toast" class="toast hidden"></div>
 
 <script src="engine.js"></script>
+<script src="ios-bridge.js"></script>
 <script src="mock.js"></script>
 <script src="mobile.js"></script>
 </body>

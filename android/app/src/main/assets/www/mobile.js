@@ -262,9 +262,40 @@ function newProject(info) {
   const preset = store.get("dc_preset", "hormozi");
   P = {
     name: info.name || "Video", file: info.file, url: info.url,
-    video: { width: info.width || 1080, height: info.height || 1920, duration: info.duration || 0, fps: info.fps || 30 },
+    video: { width: info.width || 1080, height: info.height || 1920, duration: info.duration || 0, fps: info.fps || 30,
+             codec: info.codec || "", hdr: !!info.hdr },
     engine: engineId, preset, style: styleFor(preset), words: [],
   };
+  // HEVC / HDR / 4K clips don't play in every phone's web view: make a light 720p preview copy
+  // in the background while the speech is transcribed (export always uses the original).
+  const v = P.video;
+  if (/hevc|dolby/i.test(v.codec) || v.hdr || Math.max(v.width, v.height) > 2000) requestPreview();
+}
+
+// ---------------------------------------------------------------- preview copy (for videos the web view can't play)
+let previewAsked = null, playCheck = null;
+function previewSize() {
+  const { width: W, height: H } = P.video, s = Math.min(1, 720 / Math.min(W, H));
+  return [Math.round(W * s / 2) * 2, Math.round(H * s / 2) * 2];
+}
+function requestPreview() {
+  if (!P || !A.makePreview || previewAsked === P.file || P.previewFile) return;
+  previewAsked = P.file;
+  const [w, h] = previewSize();
+  A.makePreview(P.file, w, h);
+  $("#stageMsg") && ($("#stageMsg").textContent = "Preparing preview…");
+}
+function videoUrl() {
+  if (A.mediaUrl) return A.mediaUrl(P.previewFile || P.file);
+  return P.previewUrl || P.url;
+}
+function setVideoSource() {
+  const url = videoUrl();
+  if (video.dataset.src === url) return;
+  video.src = url; video.dataset.src = url;
+  clearTimeout(playCheck);
+  // no picture after a few seconds -> fall back to a preview copy
+  playCheck = setTimeout(() => { if (P && video.readyState < 2 && !P.previewFile) requestPreview(); }, 5000);
 }
 function startTranscribe() {
   if (!P) return;
@@ -298,7 +329,8 @@ function openEditor() {
   $("#projTitle").textContent = P.name;
   const { width: W, height: H } = P.video;
   $("#stage").style.aspectRatio = `${W} / ${H}`;
-  if (video.dataset.src !== P.url) { video.src = P.url; video.dataset.src = P.url; }
+  setVideoSource();
+  $("#stageMsg").textContent = previewAsked === P.file && !P.previewFile ? "Preparing preview…" : "";
   restructure();
   Promise.all([DC.loadFont(P.style.font).catch(() => {})]).then(() => { sizeOverlay(); draw(); });
   buildPresetGrid(); renderWords(); syncAdjust();
@@ -536,6 +568,14 @@ window.__native = raw => {
   switch (m.type) {
     case "importing": closeSheets(); showBusy("import", "Opening video…", false); break;
     case "picked": newProject(m); hideBusy(); startTranscribe(); break;
+    case "preview":
+      if (P && P.file === m.file) {
+        P.previewFile = m.url.split("/").pop(); P.previewUrl = m.url; saveSoon();
+        if (!$("#editor").classList.contains("hidden")) { const t = video.currentTime; setVideoSource(); video.currentTime = t; }
+        $("#stageMsg").textContent = "";
+      }
+      break;
+    case "previewError": $("#stageMsg").textContent = ""; toast("Preview isn't available for this video, but Export still works", false, 5000); break;
     case "pickCancelled": hideBusy(); break;
     case "pickError": hideBusy(); toast("Couldn't open that video: " + m.message, true, 5000); break;
     case "transcribeProgress": if (busyKind === "transcribe") setBusy(m.progress, m.message === "Listening" ? "Listening to your video…" : m.message + "…"); break;
@@ -543,7 +583,13 @@ window.__native = raw => {
     case "transcribeError": hideBusy(); toast(m.message, true, 6000); break;
     case "cancelled": hideBusy(); toast("Cancelled"); break;
     case "exportProgress": if (busyKind === "export") setBusy(0.3 + 0.7 * m.progress, "Making your video…", `${Math.round(m.progress * 100)}%`); break;
-    case "exported": hideBusy(); lastExportUri = m.uri; openSheet("#doneSheet"); break;
+    case "exported": {
+      hideBusy(); lastExportUri = m.uri;
+      const ios = A.platform && A.platform() === "ios";
+      $("#doneTitle").textContent = m.note ? "Video ready" : ios ? "Saved to Photos" : "Saved to your gallery";
+      $("#doneSub").textContent = m.note || (ios ? "Also in Files › On My iPhone › DesiCaps" : "Movies › DesiCaps");
+      openSheet("#doneSheet"); break;
+    }
     case "exportError": hideBusy(); toast("Export failed: " + m.message, true, 7000); break;
     case "downloadProgress": downloading[m.id] = { got: m.got, total: m.total }; renderModelList(); break;
     case "downloadDone": delete downloading[m.id]; engineId = m.id; store.set("dc_engine", engineId); refreshEngines(); toast("Model ready"); break;
@@ -582,7 +628,8 @@ function wire() {
   video.onpause = () => { $("#playIcon").classList.remove("off"); draw(); updateScrub(); };
   video.onseeked = () => { draw(); updateScrub(); };
   video.onloadedmetadata = () => { if (P && video.duration && !P.video.duration) P.video.duration = video.duration; sizeOverlay(); draw(); updateScrub(); };
-  video.onerror = () => toast("This video can't be previewed here, but export may still work", true, 5000);
+  video.onerror = () => { if (P && !P.previewFile) requestPreview(); else toast("This video can't be previewed on this phone, but Export still works", true, 5000); };
+  video.onloadeddata = () => { clearTimeout(playCheck); $("#stageMsg").textContent = ""; draw(); };
   $("#seek").oninput = e => { const d = video.duration || P.video.duration || 0; video.currentTime = d * e.target.value / 1000; draw(); };
   window.addEventListener("resize", () => { sizeOverlay(); draw(); });
 
