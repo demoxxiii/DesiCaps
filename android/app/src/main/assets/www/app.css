@@ -81,7 +81,7 @@ input { font: inherit; }
 #stage { position: relative; height: 100%; max-width: 100%; aspect-ratio: 9 / 16; background: #000; border-radius: 14px; overflow: hidden; }
 #stage video, #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 #stage video { object-fit: contain; }
-#stage #overlayDiff { mix-blend-mode: difference; pointer-events: none; }
+#stage #overlayDiff { pointer-events: none; display: none; }
 .stage-msg { position: absolute; left: 0; right: 0; top: 12px; text-align: center; font-size: 13px; color: #fff; text-shadow: 0 1px 4px #000; pointer-events: none; }
 .stage-msg:empty { display: none; }
 .play-icon { position: absolute; inset: 0; margin: auto; width: 68px; height: 68px; border-radius: 50%;
@@ -164,3 +164,5 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px;
 .toast.err { border-color: var(--red); }
 
 .ios .ios-hide { display: none; }
+.w { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.w.hl1::before, .w.hl2::before { content: "★"; font-size: 0.8em; margin-right: 2px; }

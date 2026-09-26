@@ -32,6 +32,11 @@ datas += [(os.path.join(ROOT, "app", "presets.json"), "app")]
 datas += tree("assets", "assets")
 datas += tree("models", "models")
 datas += tree("premiere", "premiere")   # Premiere Pro panel (installed from the app)
+os.makedirs(os.path.join(ROOT, "build"), exist_ok=True)
+_vf = os.path.join(ROOT, "build", "version.txt")
+with open(_vf, "w") as _f:
+    _f.write(VERSION.lstrip("v"))
+datas += [(_vf, "app")]
 binaries = [(p, "bin") for p, _ in tree("bin", "bin")]
 
 hidden = []

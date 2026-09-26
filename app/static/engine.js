@@ -304,7 +304,11 @@ const DC = (() => {
     m.setTransform(1, 0, 0, 1, 0, 0); m.clearRect(0, 0, cw, ch);
     m.setTransform(cw / W, 0, 0, ch / H, 0, 0);
     if (draw(m, project, t, W, H, pgs, redraw, "diff") < 0) return false;
-    ctx.drawImage(video, 0, 0, cw, ch);
+    // same placement as the <video> (object-fit: contain) so the inverted pixels line up with what is shown
+    const vw = video.videoWidth || cw, vh = video.videoHeight || ch, f = Math.min(cw / vw, ch / vh);
+    const dw = vw * f, dh = vh * f;
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cw, ch);
+    ctx.drawImage(video, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
     ctx.globalCompositeOperation = "difference"; ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, cw, ch);
     ctx.globalCompositeOperation = "destination-in"; ctx.drawImage(negMask, 0, 0);
     ctx.globalCompositeOperation = "source-over";

@@ -67,8 +67,8 @@
   <div id="stageWrap">
     <div id="stage">
       <video id="video" playsinline preload="auto"></video>
-      <canvas id="overlay"></canvas>
       <canvas id="overlayDiff"></canvas>
+      <canvas id="overlay"></canvas>
       <div id="stageMsg" class="stage-msg"></div>
       <div id="playIcon" class="play-icon">
         <svg viewBox="0 0 24 24" width="34" height="34" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -96,7 +96,7 @@
         <button class="btn ghost small" id="autoBtn">✨ Auto emoji &amp; highlights</button>
         <button class="btn ghost small" id="clearFxBtn">Clear</button>
       </div>
-      <p class="muted small">Tap a word to fix spelling, colour it or add an emoji.</p>
+      <p class="muted small">Tap a word to fix spelling, make it the ★ main word or add an emoji. Long-press a word to toggle ★ main.</p>
       <div id="wordList" class="word-list"></div>
     </div>
     <div class="panel hidden" id="p-adjust">
@@ -130,11 +130,11 @@
   <div class="grab"></div>
   <div class="row"><h3 class="grow">Edit word</h3><span class="muted small" id="wTime"></span></div>
   <input id="wText" class="field big" autocomplete="off" autocapitalize="off" spellcheck="false">
-  <div class="label mt">Colour</div>
+  <div class="label mt">Main word <span class="muted small">— bigger / accent font / negative, depending on the style</span></div>
   <div class="seg" id="hlSeg">
     <button data-hl="0">Normal</button>
-    <button data-hl="1" class="hl1">Green</button>
-    <button data-hl="2" class="hl2">Red</button>
+    <button data-hl="1" class="hl1">★ Main</button>
+    <button data-hl="2" class="hl2">★ Main 2</button>
   </div>
   <div class="label mt">Emoji</div>
   <div id="emojiGrid" class="emoji-grid"></div>

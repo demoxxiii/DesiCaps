@@ -108,6 +108,26 @@ async function pickClip() {
   try {
     const info = await evalHost("dc_info()");
     SEQ = info;
+    // several clips selected (e.g. Ctrl+A in the timeline): caption them all as one piece
+    const isOut = p => /_captions_|_negative\.mov$|\.srt$/i.test(p);
+    const sel = (info.clips || []).filter(c => c.path && !isOut(c.path));
+    const starts = new Set(sel.map(c => c.path + "@" + c.start.toFixed(2)));
+    if (starts.size > 1) {
+      status(`Combining ${starts.size} clips…`);
+      PROJECT = await job(await api("POST", "/api/premiere/open_timeline",
+        { clips: sel, width: info.width, height: info.height, name: `${info.name} (${starts.size} clips)` }), "Combining clips");
+      PID = PROJECT.id;
+      const t0 = PROJECT.timelineStart || 0;
+      CLIP = { name: `${starts.size} clips`, path: PROJECT.video, inPoint: 0, outPoint: PROJECT.duration, start: t0, speed: 1, multi: true };
+      const vids = sel.filter(c => c.kind === "video").length, auds = sel.filter(c => c.kind === "audio").length;
+      $("#clipInfo").innerHTML = `<b>${starts.size} clips</b> (${vids} video, ${auds} audio parts)<br>` +
+        `${PROJECT.duration.toFixed(1)}s from ${t0.toFixed(2)}s on the timeline · sequence ${info.width}×${info.height} @ ${info.fps} fps` +
+        (sel.some(c => Math.abs(c.speed - 1) > 0.001) ? `<br><span style="color:#ffb020">Some clips are speed-changed — captions follow normal speed.</span>` : "");
+      status("");
+      showWords();
+      $("#transcribe").disabled = false;
+      return;
+    }
     if (!info.clip || !info.clip.path) throw new Error("Select a clip in the timeline (or put the playhead over it).");
     CLIP = info.clip;
     const len = (CLIP.outPoint - CLIP.inPoint).toFixed(1);
@@ -118,7 +138,7 @@ async function pickClip() {
     PID = PROJECT.id;
     showWords();
     $("#transcribe").disabled = false;
-  } catch (e) { status(e.message, "err"); }
+  } catch (e) { progress(null); status(e.message, "err"); }
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 function wordsInRange() {

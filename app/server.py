@@ -22,7 +22,16 @@ import ae_export
 import engine
 import render as R
 
-VERSION = "1.0.0"
+def _app_version():
+    for d in (os.path.join(paths.RES, "app"), os.path.dirname(os.path.abspath(__file__))):
+        try:
+            return open(os.path.join(d, "version.txt"), encoding="utf-8").read().strip() or "dev"
+        except Exception:
+            pass
+    return "dev"
+
+
+VERSION = _app_version()
 PROJ = paths.PROJECTS
 EXPORTS = paths.EXPORTS
 PRESETS = json.load(open(paths.PRESETS_FILE, encoding="utf-8"))
@@ -341,6 +350,58 @@ async def premiere_open(req: Request):
     return best or new_project(path, os.path.splitext(os.path.basename(path))[0])
 
 
+def _is_caption_output(path):
+    n = os.path.basename(path).lower()
+    return "_captions_" in n or n.endswith(("_negative.mov", ".srt"))
+
+
+@app.post("/api/premiere/open_timeline")
+async def premiere_open_timeline(req: Request):
+    """Several selected Premiere clips -> one project in sequence time (a stitched preview file).
+
+    Body: {clips: [{path, kind: video|audio, inPoint, outPoint, start}], width, height, name}.
+    Reuses the project made from the same selection, so word edits are kept."""
+    body = await req.json()
+    clips = [c for c in body.get("clips", []) if c.get("path") and os.path.isfile(c["path"])
+             and not _is_caption_output(c["path"]) and c.get("outPoint", 0) > c.get("inPoint", 0)]
+    if not clips:
+        raise HTTPException(400, "None of the selected clips is a media file DesiCaps can read.")
+    key_src = "|".join(sorted(f"{os.path.normcase(c['path'])}@{c['start']:.2f}+{c['inPoint']:.2f}-{c['outPoint']:.2f}"
+                              for c in clips))
+    import hashlib
+    key = hashlib.sha1(key_src.encode("utf-8")).hexdigest()[:12]
+    if os.path.isdir(PROJ):
+        best = None
+        for d in os.listdir(PROJ):
+            try:
+                p = json.load(open(os.path.join(PROJ, d, "project.json"), encoding="utf-8"))
+            except Exception:
+                continue
+            if p.get("timelineKey") == key and os.path.isfile(p.get("video", "")):
+                if best is None or p.get("created", 0) > best.get("created", 0):
+                    best = p
+        if best:
+            return {"done": True, "result": best, "id": None}
+    vids = [c for c in clips if c.get("kind") == "video"]
+    auds = [c for c in clips if c.get("kind") == "audio"] or vids
+    SW, SH = float(body.get("width") or 1920), float(body.get("height") or 1080)
+    f = 1280.0 / max(SW, SH)
+    PW, PH = int(SW * f) // 2 * 2, int(SH * f) // 2 * 2
+    name = body.get("name") or f"Sequence ({len(clips)} clips)"
+
+    def work(prog):
+        prog(0.05, f"Combining {len(clips)} clips")
+        tmp = os.path.join(ensure_dir(os.path.join(PROJ, "_timelines")), f"timeline_{key}.mp4")
+        t0, total = R.build_timeline(vids, auds, PW, PH, tmp)
+        p = new_project(tmp, name)
+        p["timelineKey"] = key
+        p["timelineStart"] = t0
+        save(p)
+        return p
+
+    return start_job("premiere_timeline", work)
+
+
 @app.post("/api/project/{pid}/premiere_overlay")
 async def premiere_overlay(pid: str, req: Request):
     body = await req.json()
@@ -475,6 +536,22 @@ def install_premiere():
         except Exception:
             pass
     return {"path": dst}
+
+
+def _refresh_premiere_panel():
+    """If the panel was installed before, update it to this app version's copy (runs at startup)."""
+    try:
+        base = (os.path.join(os.environ.get("APPDATA", ""), "Adobe", "CEP", "extensions") if paths.IS_WIN
+                else os.path.expanduser("~/Library/Application Support/Adobe/CEP/extensions"))
+        dst = os.path.join(base, "DesiCaps")
+        src = os.path.join(paths.RES, "premiere", "DesiCaps")
+        if os.path.isdir(dst) and os.path.isdir(src):
+            shutil.copytree(src, dst, dirs_exist_ok=True)
+    except Exception:
+        pass
+
+
+threading.Thread(target=_refresh_premiere_panel, daemon=True).start()
 
 
 # ---------------------------------------------------------------- AI enhance (local Ollama)

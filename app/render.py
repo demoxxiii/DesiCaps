@@ -268,3 +268,83 @@ if __name__ == "__main__":
     proj = json.load(open(sys.argv[1], encoding="utf-8"))
     render(proj, sys.argv[2], progress=lambda f: print(f"\r{f*100:5.1f}%", end="", flush=True))
     print("\ndone", sys.argv[2])
+
+
+def has_audio(path):
+    try:
+        err = subprocess.run([paths.ffmpeg(), "-hide_banner", "-i", path], capture_output=True, text=True,
+                             encoding="utf-8", errors="ignore", **HC).stderr
+        return " Audio:" in err
+    except Exception:
+        return False
+
+
+def build_timeline(video_segs, audio_segs, W, H, out_path, progress=None):
+    """Stitch several Premiere clips into one preview/transcription file in sequence time.
+
+    Each segment: {path, inPoint, outPoint, start} (seconds; start = position in the sequence).
+    Time 0 of the output = the earliest segment start. Gaps become black / silence.
+    Picture comes from video_segs (overlaps: the later clip starts where the earlier one ends);
+    sound is a mix of audio_segs placed at their sequence times."""
+    segs = video_segs + audio_segs
+    t0 = min(s["start"] for s in segs)
+    t1 = max(s["start"] + (s["outPoint"] - s["inPoint"]) for s in segs)
+    total = max(0.1, t1 - t0)
+    W, H = int(W) // 2 * 2, int(H) // 2 * 2
+    args, fc, n = [], [], 0
+
+    def add_input(s):
+        nonlocal n
+        args.extend(["-ss", f"{max(0.0, s['inPoint']):.3f}", "-t", f"{s['outPoint'] - s['inPoint']:.3f}", "-i", s["path"]])
+        n += 1
+        return n - 1
+
+    # picture
+    parts, cur = [], t0
+    for s in sorted(video_segs, key=lambda s: s["start"]):
+        st = max(s["start"], cur)
+        en = s["start"] + (s["outPoint"] - s["inPoint"])
+        if en - st < 0.04:
+            continue
+        if st - cur > 0.02:
+            parts.append(("gap", st - cur))
+        s2 = dict(s, inPoint=s["inPoint"] + (st - s["start"]))
+        parts.append(("seg", add_input(s2), en - st))
+        cur = en
+    if t1 - cur > 0.02 or not parts:
+        parts.append(("gap", max(0.1, t1 - cur)))
+    labels = []
+    for k, p in enumerate(parts):
+        lab = f"v{k}"
+        if p[0] == "gap":
+            fc.append(f"color=black:s={W}x{H}:r=30:d={p[1]:.3f},format=yuv420p[{lab}]")
+        else:
+            fc.append(f"[{p[1]}:v]scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,"
+                      f"setsar=1,fps=30,format=yuv420p,trim=duration={p[2]:.3f},setpts=PTS-STARTPTS[{lab}]")
+        labels.append(f"[{lab}]")
+    fc.append(f"{''.join(labels)}concat=n={len(labels)}:v=1:a=0[v]")
+
+    # sound
+    alabs = []
+    for s in audio_segs:
+        if not has_audio(s["path"]):
+            continue
+        i = add_input(s)
+        ms = int(round((s["start"] - t0) * 1000))
+        fc.append(f"[{i}:a]aresample=48000,aformat=channel_layouts=stereo,adelay={ms}|{ms}[a{i}]")
+        alabs.append(f"[a{i}]")
+    if alabs:
+        fc.append(f"{''.join(alabs)}amix=inputs={len(alabs)}:normalize=0:duration=longest,apad,atrim=duration={total:.3f}[a]")
+    else:
+        fc.append(f"anullsrc=r=48000:cl=stereo,atrim=duration={total:.3f}[a]")
+
+    cmd = [paths.ffmpeg(), "-y", "-hide_banner", "-loglevel", "error", *args,
+           "-filter_complex", ";".join(fc), "-map", "[v]", "-map", "[a]",
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "26", "-c:a", "aac", "-b:a", "160k",
+           "-movflags", "+faststart", "-t", f"{total:.3f}", out_path]
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="ignore", **HC)
+    if r.returncode != 0:
+        raise RuntimeError("Couldn't combine the clips: " + r.stderr[-800:])
+    if progress:
+        progress(1.0)
+    return t0, total

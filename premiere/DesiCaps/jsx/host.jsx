@@ -60,10 +60,17 @@ function dc_info() {
         var seq = app.project.activeSequence;
         if (!seq) return dc_err("Open a sequence first.");
         var info = dc_seqInfo(seq);
-        var clip = null, i, j, t;
+        var clip = null, i, j, t, all = [];
         // 1) selected clips (video first, then audio)
         try {
             var sel = seq.getSelection();
+            for (i = 0; sel && i < sel.length; i++) {
+                var s0 = sel[i];
+                if (!s0 || !s0.projectItem) continue;
+                var mp = ""; try { mp = s0.projectItem.getMediaPath(); } catch (e0) {}
+                if (!mp) continue;
+                all.push(dc_clipInfo(s0, s0.mediaType === "Video" ? "video" : "audio", -1));
+            }
             for (i = 0; sel && i < sel.length; i++) {
                 var it = sel[i];
                 if (it && it.projectItem && it.mediaType === "Video") { clip = dc_clipInfo(it, "video", -1); break; }
@@ -96,6 +103,7 @@ function dc_info() {
         }
         info.ok = true;
         info.clip = clip;
+        info.clips = all;
         return dc_json(info);
     } catch (e) {
         return dc_err("Premiere error: " + e.toString());

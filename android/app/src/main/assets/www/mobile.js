@@ -356,10 +356,10 @@ function draw() {
   if (!P.words.length || !overlay.width) return;
   octx.setTransform(overlay.width / W, 0, 0, overlay.height / H, 0, 0);
   DC.draw(octx, P, video.currentTime, W, H, PGS, () => draw());
-  if (DC.isDiff(P.style)) {
-    dctx.setTransform(overlayDiff.width / W, 0, 0, overlayDiff.height / H, 0, 0);
-    DC.draw(dctx, P, video.currentTime, W, H, PGS, () => draw(), "diff");
-  }
+  // negative text: painted directly (inverted video inside the text) — no CSS blending, which
+  // some Android WebViews can't combine with a playing <video>
+  overlayDiff.style.display = DC.isDiff(P.style) ? "block" : "none";
+  DC.paintNegative(dctx, video, P, video.currentTime, W, H, PGS, () => draw());
   markPlaying(video.currentTime);
 }
 function loop() { draw(); updateScrub(); raf = video.paused ? null : requestAnimationFrame(loop); }
@@ -663,7 +663,22 @@ function wire() {
   $("#seek").oninput = e => { const d = video.duration || P.video.duration || 0; video.currentTime = d * e.target.value / 1000; draw(); };
   window.addEventListener("resize", () => { sizeOverlay(); draw(); });
 
-  $("#wordList").onclick = e => { const b = e.target.closest(".w"); if (b) openWord(+b.dataset.i); };
+  let lpTimer = null, lpFired = false;
+  $("#wordList").addEventListener("pointerdown", e => {
+    const b = e.target.closest(".w"); if (!b) return;
+    lpFired = false; clearTimeout(lpTimer);
+    lpTimer = setTimeout(() => {   // long-press: toggle ★ main word
+      lpFired = true;
+      const w = P.words[+b.dataset.i]; if (!w) return;
+      if (w.hl) delete w.hl; else w.hl = 1;
+      if (navigator.vibrate) navigator.vibrate(15);
+      changed(false); toast(w.hl ? `★ "${w.text}" is now a main word` : `"${w.text}" is normal again`);
+    }, 450);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => $("#wordList").addEventListener(ev, () => clearTimeout(lpTimer)));
+  $("#wordList").addEventListener("scroll", () => clearTimeout(lpTimer), { passive: true });
+  $("#wordList").addEventListener("contextmenu", e => e.preventDefault());
+  $("#wordList").onclick = e => { if (lpFired) { lpFired = false; return; } const b = e.target.closest(".w"); if (b) openWord(+b.dataset.i); };
   $("#wText").addEventListener("keydown", e => { if (e.key === "Enter") { commitWord(); closeSheets(); } });
   $("#wText").addEventListener("input", () => { const w = P.words[SEL]; if (w && $("#wText").value.trim()) { w.text = $("#wText").value.trim(); draw(); } });
   $("#hlSeg").onclick = e => {
