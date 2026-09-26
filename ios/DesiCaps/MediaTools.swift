@@ -89,46 +89,74 @@ enum MediaTools {
         let ids: [Int]        // -1 = no caption
         let frames: [Int: Frame]
         let planW: CGFloat, planH: CGFloat
+        let masks: [Int]?    // "negative text" mask frame per entry, -1 = none
         private let lock = NSLock()
-        private var cacheId = Int.min
-        private var cacheImage: CIImage?
+        private var cache: [Int: CIImage] = [:]
+        private var cacheOrder: [Int] = []
 
-        init(times: [Double], ids: [Int], frames: [Int: Frame], planW: CGFloat, planH: CGFloat) {
+        init(times: [Double], ids: [Int], frames: [Int: Frame], planW: CGFloat, planH: CGFloat, masks: [Int]? = nil) {
             self.times = times; self.ids = ids; self.frames = frames; self.planW = planW; self.planH = planH
+            self.masks = masks
         }
 
-        func id(at t: Double) -> Int {
+        private func index(at t: Double) -> Int {
             var lo = 0, hi = times.count - 1, idx = -1
             while lo <= hi {
                 let mid = (lo + hi) / 2
                 if times[mid] <= t + 0.0005 { idx = mid; lo = mid + 1 } else { hi = mid - 1 }
             }
+            return idx
+        }
+
+        func id(at t: Double) -> Int {
+            let idx = index(at: t)
             return idx < 0 ? -1 : ids[idx]
         }
 
         func image(for id: Int) -> (CIImage, Frame)? {
             guard id >= 0, let f = frames[id] else { return nil }
             lock.lock(); defer { lock.unlock() }
-            if id != cacheId {
-                cacheImage = CIImage(contentsOf: f.url)
-                cacheId = id
-            }
-            guard let img = cacheImage else { return nil }
+            if let img = cache[id] { return (img, f) }
+            guard let img = CIImage(contentsOf: f.url) else { return nil }
+            cache[id] = img; cacheOrder.append(id)
+            if cacheOrder.count > 4 { cache.removeValue(forKey: cacheOrder.removeFirst()) }
             return (img, f)
         }
 
-        func apply(_ source: CIImage, time: Double) -> CIImage {
-            guard let hit = image(for: id(at: time)) else { return source }
-            let img = hit.0, f = hit.1
-            let ext = source.extent
+        /// Scales a plan-space band image into the video's extent.
+        private func place(_ img: CIImage, _ f: Frame, in ext: CGRect) -> CIImage {
             let s = ext.width / planW
             let h = img.extent.height
             // plan coordinates are top-left based; Core Image is bottom-left based
             let tx = ext.minX + f.x * s
             let ty = ext.minY + (planH - f.y - h) * s
-            let placed = img.transformed(by: CGAffineTransform(scaleX: s, y: s))
+            return img.transformed(by: CGAffineTransform(scaleX: s, y: s))
                 .transformed(by: CGAffineTransform(translationX: tx, y: ty))
-            return placed.composited(over: source)
+        }
+
+        func apply(_ source: CIImage, time: Double) -> CIImage {
+            let idx = index(at: time)
+            guard idx >= 0 else { return source }
+            let ext = source.extent
+            var base = source
+            if let masks = masks, masks[idx] >= 0, let m = image(for: masks[idx]) {
+                // negative text: invert the video wherever the mask's alpha is set
+                let mask = place(m.0, m.1, in: ext).cropped(to: ext)
+                let inverted = source.applyingFilter("CIColorInvert")
+                let alphaMask = mask.applyingFilter("CIColorMatrix", parameters: [
+                    "inputRVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputGVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputBVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: 0),
+                    "inputBiasVector": CIVector(x: 0, y: 0, z: 0, w: 1),
+                ])
+                base = inverted.applyingFilter("CIBlendWithMask", parameters: [
+                    kCIInputBackgroundImageKey: source,
+                    kCIInputMaskImageKey: alphaMask,
+                ]).cropped(to: ext)
+            }
+            guard ids[idx] >= 0, let hit = image(for: ids[idx]) else { return base }
+            return place(hit.0, hit.1, in: ext).composited(over: base)
         }
     }
 

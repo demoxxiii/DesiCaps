@@ -281,7 +281,9 @@ final class MainViewController: UIViewController, WKScriptMessageHandler, PHPick
         let h = CGFloat((plan["height"] as? NSNumber)?.doubleValue ?? 1920)
         var base = (plan["name"] as? String ?? "DesiCaps").components(separatedBy: CharacterSet.alphanumerics.union(.init(charactersIn: "-_ ")).inverted).joined()
         if base.isEmpty { base = "DesiCaps" }
-        let overlay = MediaTools.Overlay(times: times, ids: ids, frames: exportFrames, planW: w, planH: h)
+        let masks = (plan["masks"] as? [NSNumber])?.map { $0.intValue }
+        let overlay = MediaTools.Overlay(times: times, ids: ids, frames: exportFrames, planW: w, planH: h,
+                                         masks: (masks?.count == times.count) ? masks : nil)
         let input = MainViewController.mediaDir.appendingPathComponent(file)
         let output = MainViewController.exportsDir.appendingPathComponent("\(base)_captions_\(Int(Date().timeIntervalSince1970)).mp4")
         keepAwake(true)

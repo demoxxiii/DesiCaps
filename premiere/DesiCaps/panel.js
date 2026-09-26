@@ -203,8 +203,15 @@ async function addToTimeline() {
       const r = await job(await api("POST", `/api/project/${PID}/premiere_overlay`,
         Object.assign({ width: SEQ.width, height: SEQ.height, fps: SEQ.fps }, range)), "Rendering");
       status("Placing on the timeline…");
-      const p = await evalHost(`dc_place(${jsStr(r.path)}, ${CLIP.start})`);
-      status(`Added on ${p.track || "a new track"}. Transparent ProRes 4444 layer — move or trim it like any clip.`, "ok");
+      let p = null;
+      if (r.path) p = await evalHost(`dc_place(${jsStr(r.path)}, ${CLIP.start}, "")`);
+      if (r.diffPath) {
+        const d = await evalHost(`dc_place(${jsStr(r.diffPath)}, ${CLIP.start}, "difference")`);
+        status(d.blend ? `Negative text added on ${d.track} (blend mode: Difference).` :
+          `Negative text added on ${d.track}. Select it → Effect Controls → Opacity → Blend Mode → Difference.`, "ok");
+      } else {
+        status(`Added on ${p.track || "a new track"}. Transparent ProRes 4444 layer — move or trim it like any clip.`, "ok");
+      }
     } else {
       const r = await api("POST", `/api/project/${PID}/premiere_srt`, range);
       await evalHost(`dc_captions(${jsStr(r.path)}, ${CLIP.start})`);

@@ -322,6 +322,7 @@ function onTranscribed(msg) {
 
 // ---------------------------------------------------------------- editor
 const video = $("#video"), overlay = $("#overlay"), octx = overlay.getContext("2d");
+const overlayDiff = $("#overlayDiff"), dctx = overlayDiff.getContext("2d");
 let raf = null;
 
 function openEditor() {
@@ -332,7 +333,7 @@ function openEditor() {
   setVideoSource();
   $("#stageMsg").textContent = previewAsked === P.file && !P.previewFile ? "Preparing preview…" : "";
   restructure();
-  Promise.all([DC.loadFont(P.style.font).catch(() => {})]).then(() => { sizeOverlay(); draw(); });
+  DC.loadStyleFonts(P.style).catch(() => {}).then(() => { sizeOverlay(); draw(); });
   buildPresetGrid(); renderWords(); syncAdjust();
   sizeOverlay(); draw();
 }
@@ -345,14 +346,20 @@ function sizeOverlay() {
   const r = overlay.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
   const cw = Math.max(1, Math.round(r.width * dpr)), ch = Math.max(1, Math.round(r.height * dpr));
   if (overlay.width !== cw || overlay.height !== ch) { overlay.width = cw; overlay.height = ch; }
+  if (overlayDiff.width !== cw || overlayDiff.height !== ch) { overlayDiff.width = cw; overlayDiff.height = ch; }
 }
 function draw() {
   if (!P) return;
   const W = P.video.width, H = P.video.height;
   octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, overlay.width, overlay.height);
+  dctx.setTransform(1, 0, 0, 1, 0, 0); dctx.clearRect(0, 0, overlayDiff.width, overlayDiff.height);
   if (!P.words.length || !overlay.width) return;
   octx.setTransform(overlay.width / W, 0, 0, overlay.height / H, 0, 0);
   DC.draw(octx, P, video.currentTime, W, H, PGS, () => draw());
+  if (DC.isDiff(P.style)) {
+    dctx.setTransform(overlayDiff.width / W, 0, 0, overlayDiff.height / H, 0, 0);
+    DC.draw(dctx, P, video.currentTime, W, H, PGS, () => draw(), "diff");
+  }
   markPlaying(video.currentTime);
 }
 function loop() { draw(); updateScrub(); raf = video.paused ? null : requestAnimationFrame(loop); }
@@ -378,7 +385,7 @@ function buildPresetGrid() {
       P.preset = p.id; P.style = styleFor(p.id);
       if (P.customPos) P.style.posY = keep.posY;
       store.set("dc_preset", p.id);
-      await DC.loadFont(P.style.font).catch(() => {});
+      await DC.loadStyleFonts(P.style).catch(() => {});
       $$(".preset").forEach(x => x.classList.remove("active")); b.classList.add("active");
       changed(); syncAdjust();
     };
@@ -388,7 +395,7 @@ function buildPresetGrid() {
 }
 async function drawPresetThumb(cv, p) {
   const st = styleFor(p.id);
-  await DC.loadFont(st.font).catch(() => {});
+  await DC.loadStyleFonts(st).catch(() => {});
   const W = 360, H = 270, dev = p.id === "devanagari";
   const text = dev ? ["ये", "ट्रिक", "कमाल"] : ["ye", "trick", "kamaal"];
   const words = text.map((t, i) => ({ text: t, start: i * 0.3, end: i * 0.3 + 0.3 }));
@@ -398,7 +405,19 @@ async function drawPresetThumb(cv, p) {
   const proj = { words, style: s };
   const c = cv.getContext("2d");
   c.clearRect(0, 0, W, H);
-  DC.draw(c, proj, s.mode === "single" ? 0.7 : 0.75, W, H, DC.pages(words), () => drawPresetThumb(cv, p));
+  const t = s.mode === "single" ? 0.7 : 0.75, redo = () => drawPresetThumb(cv, p);
+  if (DC.isDiff(s)) {
+    // negative text: show it as an inverted cut-out of a split light/dark backdrop
+    const g = c.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, "#f2efe8"); g.addColorStop(0.5, "#f2efe8"); g.addColorStop(0.5, "#1c1c22"); g.addColorStop(1, "#1c1c22");
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    DC.draw(c, proj, t, W, H, DC.pages(words), redo);
+    c.save(); c.globalCompositeOperation = "difference";
+    DC.draw(c, proj, t, W, H, DC.pages(words), redo, "diff");
+    c.restore();
+    return;
+  }
+  DC.draw(c, proj, t, W, H, DC.pages(words), redo);
 }
 
 // --- Words tab
@@ -506,7 +525,9 @@ function stateKey(t, f, pgs) {
   if (pi < 0) return null;
   const pg = pgs[pi], a = DC.activeIndex(words, pg, t);
   let anim = (st.pageAnim || "pop") !== "none" && (t - pg.start) < DC.PAGE_IN;
-  if (a != null && st.wordAnim !== "none" && (t - words[a].start) < WORD_POP) anim = true;
+  if (st.wordAnim === "rise") {
+    for (let i = pg.i0; i <= pg.i1; i++) { const d = t - words[i].start; if (d >= -0.001 && d < DC.WORD_RISE) { anim = true; break; } }
+  } else if (a != null && st.wordAnim !== "none" && (t - words[a].start) < WORD_POP) anim = true;
   if (st.emoji !== false) for (let i = pg.i0; i <= pg.i1; i++) {
     if (words[i].emoji && words[i].start <= t + 0.001) { if (t - words[i].start < EMOJI_POP) anim = true; break; }
   }
@@ -518,7 +539,7 @@ async function exportVideo() {
   showBusy("export", "Preparing captions…");
   try {
     const [OW, OH] = outSize();
-    await DC.loadFont(P.style.font).catch(() => {});
+    await DC.loadStyleFonts(P.style).catch(() => {});
     await DC.preloadEmoji([...new Set(P.words.map(w => w.emoji).filter(Boolean))]);
     A.beginExport();
     const pgs = DC.pages(P.words);
@@ -527,7 +548,10 @@ async function exportVideo() {
     const cv = document.createElement("canvas"); cv.width = OW; cv.height = OH;
     const ctx = cv.getContext("2d");
     const band = document.createElement("canvas"), bctx = band.getContext("2d");
-    const times = [], ids = [];
+    const times = [], ids = [], masks = [];
+    const diff = DC.isDiff(P.style), MASK = 1000000;
+    const mcv = diff ? document.createElement("canvas") : null, mctx = diff ? mcv.getContext("2d") : null;
+    if (diff) { mcv.width = OW; mcv.height = OH; }
     let prev, nextId = 0, states = 0, lastYield = performance.now();
     for (let f = 0; f <= N; f++) {
       if (busyKind !== "export") return;           // cancelled
@@ -539,7 +563,7 @@ async function exportVideo() {
         id = nextId++;
         ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, OW, OH);
         const pi = DC.draw(ctx, P, t, OW, OH, pgs);
-        if (pi < 0) { id = -1; nextId--; times.push(Math.round(t * 1e6)); ids.push(id); continue; }
+        if (pi < 0) { id = -1; nextId--; times.push(Math.round(t * 1e6)); ids.push(id); masks.push(-1); continue; }
         const pg = pgs[pi], lay = DC.layout(P.words, pg, P.style, OW, OH);
         const fs = lay.fs;
         const y0 = Math.max(0, Math.floor(lay.box[1] - fs * 2.8)), y1 = Math.min(OH, Math.ceil(lay.box[3] + fs * 1.3));
@@ -547,16 +571,22 @@ async function exportVideo() {
         band.width = OW; band.height = h;
         bctx.clearRect(0, 0, OW, h); bctx.drawImage(cv, 0, y0, OW, h, 0, 0, OW, h);
         if (!A.putFrame(id, 0, y0, band.toDataURL("image/png"))) throw new Error("Could not store caption frame");
+        if (diff) {
+          mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.clearRect(0, 0, OW, OH);
+          DC.draw(mctx, P, t, OW, OH, pgs, null, "diff");
+          bctx.clearRect(0, 0, OW, h); bctx.drawImage(mcv, 0, y0, OW, h, 0, 0, OW, h);
+          if (!A.putFrame(MASK + id, 0, y0, band.toDataURL("image/png"))) throw new Error("Could not store caption frame");
+        }
         states++;
       }
-      times.push(Math.round(t * 1e6)); ids.push(id);
+      times.push(Math.round(t * 1e6)); ids.push(id); masks.push(diff && id >= 0 ? MASK + id : -1);
       if (performance.now() - lastYield > 120) {
         setBusy(0.3 * f / N, "Preparing captions…", `${states} caption frames`);
         await new Promise(r => setTimeout(r, 0)); lastYield = performance.now();
       }
     }
     setBusy(0.3, "Making your video…", "Using the phone's video encoder");
-    A.finishExport(P.file, JSON.stringify({ width: OW, height: OH, fps: P.video.fps || 30, times, ids, name: P.name }));
+    A.finishExport(P.file, JSON.stringify({ width: OW, height: OH, fps: P.video.fps || 30, times, ids, masks: diff ? masks : null, name: P.name }));
   } catch (e) {
     hideBusy(); toast("Export failed: " + e.message, true, 6000);
   }

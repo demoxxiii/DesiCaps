@@ -91,23 +91,47 @@ ENC_ARGS = {
 }
 
 
+def _mask_bytes(img):
+    """Text mask as RGBA bytes with R=G=B=coverage (so FFmpeg can use it as a gbrp mask without range maths)."""
+    from PIL import Image
+    a = img.getchannel("A")
+    return Image.merge("RGBA", (a, a, a, a)).tobytes()
+
+
 def render(project, out_path, progress=None, encoder=None):
-    """Render project -> MP4. progress(fraction) is called periodically."""
+    """Render project -> MP4. progress(fraction) is called periodically.
+
+    'difference' styles (negative text) send two stacked bands per frame: the normal caption layer
+    on top and a white text mask below; FFmpeg inverts the video under the mask."""
     info = probe(project["video"])
     W, H, fps, dur = info["width"], info["height"], info["fps"], info["duration"]
     oy, bh = engine.compute_band(project, W, H)
     pgs = engine.pages(project["words"])
     nframes = int(dur * fps)
+    diff = engine.is_diff(project["style"])
     encoder = encoder or pick_encoder()
     venc = ["-c:v", encoder] + ENC_ARGS.get(encoder, [])
+    if diff:
+        # mask band arrives as RGB = coverage (see _mask_bytes); only the caption band is processed
+        fc = (f"[1:v]split=2[c1][c2];[c1]crop={W}:{bh}:0:0[cap];"
+              f"[c2]crop={W}:{bh}:0:{bh},format=gbrp[mask];"
+              f"[0:v]scale={W}:{H},format=gbrp,split=2[main][x];"
+              f"[x]crop={W}:{bh}:0:{oy},split=2[b1][b2];[b2]negate[neg];"
+              f"[b1][neg][mask]maskedmerge[mb];[main][mb]overlay=0:{oy}[mix];"
+              f"[mix][cap]overlay=0:{oy}:eof_action=pass:format=auto,format=yuv420p[v]")
+        band_h = bh * 2
+    else:
+        fc = f"[0:v][1:v]overlay=0:{oy}:eof_action=pass:format=auto,format=yuv420p[v]"
+        band_h = bh
     cmd = [paths.ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
            "-i", project["video"],
-           "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{W}x{bh}", "-r", str(fps), "-i", "-",
-           "-filter_complex", f"[0:v][1:v]overlay=0:{oy}:eof_action=pass:format=auto,format=yuv420p[v]",
+           "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{W}x{band_h}", "-r", str(fps), "-i", "-",
+           "-filter_complex", fc,
            "-map", "[v]", "-map", "0:a?", *venc, "-c:a", "aac", "-b:a", "192k",
            "-movflags", "+faststart", out_path]
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, **HC)
-    blank = bytes(W * bh * 4)
+    blank = bytes(W * band_h * 4)
+    half = bytes(W * bh * 4)
     last_key, last_bytes = None, blank
     try:
         for n in range(nframes):
@@ -119,7 +143,10 @@ def render(project, out_path, progress=None, encoder=None):
                 buf = last_bytes
             else:
                 im = engine.draw_frame(project, t, W, H, pgs, oy=oy, bh=bh)
-                buf = im.tobytes() if im is not None else blank
+                buf = im.tobytes() if im is not None else half
+                if diff:
+                    m = engine.draw_frame(project, t, W, H, pgs, oy=oy, bh=bh, layer="diff")
+                    buf += _mask_bytes(m) if m is not None else half
             last_key, last_bytes = key, buf
             proc.stdin.write(buf)
             if progress and n % 15 == 0:
@@ -146,9 +173,10 @@ def _rate(fps):
     return str(round(fps, 4))
 
 
-def render_overlay(project, out_path, W, H, fps, t0, t1, progress=None):
+def render_overlay(project, out_path, W, H, fps, t0, t1, progress=None, layer="normal"):
     """Transparent caption layer (ProRes 4444 with alpha, W x H) covering media time t0..t1.
-    Used by the Premiere Pro panel: the .mov goes on a track above the clip."""
+    Used by the Premiere Pro panel: the .mov goes on a track above the clip.
+    layer="diff" renders the white text of a 'difference' style (set that clip's blend mode to Difference)."""
     t1 = max(t1, t0 + 1.0 / fps)
     oy, bh = engine.compute_band(project, W, H)
     pgs = engine.pages(project["words"])
@@ -171,7 +199,7 @@ def render_overlay(project, out_path, W, H, fps, t0, t1, progress=None):
             elif key == last_key:
                 buf = last_bytes
             else:
-                im = engine.draw_frame(project, t, W, H, pgs, oy=oy, bh=bh)
+                im = engine.draw_frame(project, t, W, H, pgs, oy=oy, bh=bh, layer=layer)
                 buf = im.tobytes() if im is not None else blank
             last_key, last_bytes = key, buf
             proc.stdin.write(buf)
@@ -212,6 +240,11 @@ def still(project, t, out_png):
                     "-frames:v", "1", out_png], check=True, **HC)
     from PIL import Image
     bg = Image.open(out_png).convert("RGBA").resize((W, H))
+    m = engine.draw_frame(project, t, W, H, layer="diff")
+    if m is not None:   # negative text: invert the video under the mask
+        from PIL import ImageOps
+        inv = ImageOps.invert(bg.convert("RGB")).convert("RGBA")
+        bg = Image.composite(inv, bg, m.getchannel("A"))
     cap = engine.draw_frame(project, t, W, H)
     if cap is not None:
         bg.alpha_composite(cap)

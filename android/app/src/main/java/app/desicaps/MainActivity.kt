@@ -416,11 +416,13 @@ class MainActivity : ComponentActivity() {
                 val ids = plan.getJSONArray("ids")
                 val times = LongArray(t.length()) { t.getLong(it) }
                 val idArr = IntArray(ids.length()) { ids.getInt(it) }
+                val mk = plan.optJSONArray("masks")
+                val maskArr = if (mk != null) IntArray(mk.length()) { mk.getInt(it) } else null
                 val name = plan.optString("name", "DesiCaps").replace(Regex("[^\\w\\- ]"), "").ifBlank { "DesiCaps" } +
                         "_captions_" + System.currentTimeMillis() / 1000 + ".mp4"
                 keepAwake(true)
                 exporter.start(File(File(cacheDir, "media"), file), plan.getInt("width"), plan.getInt("height"),
-                    plan.optDouble("fps", 30.0).toFloat(), times, idArr, frames, name,
+                    plan.optDouble("fps", 30.0).toFloat(), times, idArr, frames, name, maskArr,
                     onProgress = { emit(JSONObject().put("type", "exportProgress").put("progress", it.toDouble())) },
                     onDone = { uri -> keepAwake(false); emit(JSONObject().put("type", "exported").put("uri", uri)) },
                     onError = { msg -> keepAwake(false); emit(JSONObject().put("type", "exportError").put("message", msg)) })

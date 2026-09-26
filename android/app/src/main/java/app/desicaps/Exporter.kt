@@ -93,6 +93,7 @@ class Exporter(private val ctx: Context) {
     fun start(
         input: File, outW: Int, outH: Int, fps: Float,
         times: LongArray, ids: IntArray, frames: Map<Int, Frame>, name: String,
+        masks: IntArray?,
         onProgress: (Float) -> Unit, onDone: (String) -> Unit, onError: (String) -> Unit
     ) {
         main.post {
@@ -100,10 +101,12 @@ class Exporter(private val ctx: Context) {
                 val out = File(ctx.cacheDir, "export.mp4")
                 out.delete()
                 val overlay = CaptionOverlay(outW, outH, times, ids, frames)
-                val videoEffects = listOf<Effect>(
-                    Presentation.createForWidthAndHeight(outW, outH, Presentation.LAYOUT_SCALE_TO_FIT),
-                    OverlayEffect(ImmutableList.of<TextureOverlay>(overlay))
-                )
+                val videoEffects = ArrayList<Effect>()
+                videoEffects.add(Presentation.createForWidthAndHeight(outW, outH, Presentation.LAYOUT_SCALE_TO_FIT))
+                if (masks != null && masks.size == times.size && masks.any { it >= 0 }) {
+                    videoEffects.add(NegativeMaskEffect(outW, outH, times, masks, frames))
+                }
+                videoEffects.add(OverlayEffect(ImmutableList.of<TextureOverlay>(overlay)))
                 val item = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(input)))
                     .setEffects(Effects(listOf<AudioProcessor>(), videoEffects))
                     .build()

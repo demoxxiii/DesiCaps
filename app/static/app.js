@@ -14,6 +14,7 @@ function toast(html, err = false, ms = 3500) {
 
 let PRESETS = null, P = null, PGS = [], SEL = -1, EMOJIS = [];
 const video = $("#video"), cv = $("#overlay"), ctx = cv.getContext("2d");
+const cvd = $("#overlayDiff"), dctx = cvd.getContext("2d");  // negative ("difference") text layer
 
 // ======================================================= HOME
 async function showHome() {
@@ -68,7 +69,7 @@ async function openProject(id, autoTranscribe = false) {
   video.src = "/media/" + id;
   $("#frame").style.aspectRatio = `${P.width} / ${P.height}`;
   $("#engineSel").value = P.engine || "hinglish";
-  await DC.loadFont(P.style.font).catch(() => {});
+  await DC.loadStyleFonts(P.style);
   $("#vocabInput").value = P.vocab || "";
   SEL = -1; refreshAll(); snapshot(true);
   if (autoTranscribe && !P.words.length) transcribe();
@@ -90,7 +91,7 @@ async function undoRedo(d) {
   const j = HI + d; if (j < 0 || j >= HIST.length) return toast(d < 0 ? "Nothing to undo" : "Nothing to redo", false, 1200);
   HI = j; const s = JSON.parse(HIST[HI]); restoring = true;
   P.words = s.w; P.style = s.s; P.preset = s.p;
-  await DC.loadFont(P.style.font).catch(() => {});
+  await DC.loadStyleFonts(P.style);
   SEL = Math.min(SEL, P.words.length - 1); refreshAll(); restoring = false;
   api("/api/project/" + P.id, { method: "POST", body: { words: P.words, style: P.style, preset: P.preset } }).catch(() => {});
 }
@@ -118,6 +119,9 @@ function drawOverlay() {
   const s = cv.width / P.width; ctx.setTransform(s, 0, 0, s, 0, 0);
   const t = video.currentTime;
   DC.draw(ctx, P, t, P.width, P.height, PGS, drawOverlay);
+  if (cvd.width !== cv.width || cvd.height !== cv.height) { cvd.width = cv.width; cvd.height = cv.height; }
+  dctx.setTransform(1, 0, 0, 1, 0, 0); dctx.clearRect(0, 0, cvd.width, cvd.height);
+  if (DC.isDiff(P.style)) { dctx.setTransform(s, 0, 0, s, 0, 0); DC.draw(dctx, P, t, P.width, P.height, PGS, drawOverlay, "diff"); }
   $("#timeLbl").textContent = fmt(t) + " / " + fmt(P.duration);
   markPlaying(t); drawPlayhead();
 }
@@ -352,6 +356,11 @@ const FORM = [
     ["font", "Font", "font"], ["size", "Size", "range", 30, 200, 1], ["uppercase", "UPPERCASE", "check"],
     ["lineHeight", "Line height", "range", 0.8, 1.6, 0.01], ["maxWidth", "Max width", "range", 0.4, 1, 0.01],
     ["posY", "Position Y", "range", 0.05, 0.95, 0.005], ["stripPunct", "Hide punctuation", "check"],
+    ["blend", "Negative text", "select", ["normal", "difference"]],
+  ]],
+  ["Accent font", [
+    ["emphFont", "Emphasis font", "emphfont"], ["emphScale", "Emphasis size", "range", 0.6, 3, 0.05],
+    ["emphAuto", "Auto accent", "select", ["", "longest"]],
   ]],
   ["Colours", [
     ["textColor", "Text", "color"], ["activeColor", "Active word", "color"], ["emph1", "Emphasis 1", "color"], ["emph2", "Emphasis 2", "color"],
@@ -367,7 +376,7 @@ const FORM = [
   ]],
   ["Animation", [
     ["mode", "Mode", "select", ["page", "reveal", "dim"]], ["pageAnim", "Line in", "select", ["pop", "bounce", "slide", "fade", "none"]],
-    ["wordAnim", "Word pop", "select", ["pop", "none"]], ["activeScale", "Pop scale", "range", 1, 1.5, 0.01], ["emoji", "Show emoji", "check"],
+    ["wordAnim", "Word anim", "select", ["pop", "rise", "none"]], ["activeScale", "Pop scale", "range", 1, 1.5, 0.01], ["emoji", "Show emoji", "check"],
   ]],
   ["Grouping", [
     ["wordsPerPage", "Words / line", "range", 1, 10, 1], ["maxChars", "Max chars", "range", 6, 50, 1],
@@ -395,7 +404,7 @@ async function applyPreset(p) {
   const old = P.style, st = { ...PRESETS.base, ...p.style };
   st.posY = p.style.posY ?? old.posY; // keep the user's placement unless preset needs its own
   P.style = st; P.preset = p.id;
-  await DC.loadFont(st.font).catch(() => {});
+  await DC.loadStyleFonts(st);
   if (old.wordsPerPage !== st.wordsPerPage || old.maxChars !== st.maxChars) { DC.regroup(P.words, st); toast("Lines re-grouped for this preset"); }
   refreshAll(); save();
 }
@@ -409,13 +418,17 @@ function buildStyleForm() {
       if (type === "range") { input = document.createElement("input"); input.type = "range"; input.min = a; input.max = b; input.step = step; }
       else if (type === "color") { input = document.createElement("input"); input.type = "color"; }
       else if (type === "check") { input = document.createElement("input"); input.type = "checkbox"; input.style.justifySelf = "start"; }
-      else { input = document.createElement("select"); for (const o of (type === "font" ? PRESETS.fonts : a)) input.add(new Option(o.replace(/-Regular$/, ""), o)); }
+      else {
+        input = document.createElement("select");
+        const opts = type === "font" ? PRESETS.fonts : type === "emphfont" ? ["", ...PRESETS.fonts] : a;
+        for (const o of opts) input.add(new Option(o === "" ? "— none —" : o === "difference" ? "negative (difference)" : o === "longest" ? "longest word" : o.replace(/-Regular$/, ""), o));
+      }
       row.innerHTML = `<span>${label}</span>`; row.appendChild(input);
       if (type === "range") { const v = document.createElement("span"); v.className = "v"; row.appendChild(v); }
       input.addEventListener("input", async () => {
         let v = type === "check" ? input.checked : type === "range" ? +input.value : input.value;
         P.style[k] = v; P.preset = null;
-        if (k === "font") await DC.loadFont(v).catch(() => {});
+        if (k === "font" || k === "emphFont") await DC.loadFont(v).catch(() => {});
         if (k === "wordsPerPage" || k === "maxChars") { DC.regroup(P.words, P.style); changed(); }
         syncForm(k); drawOverlay(); save();
         document.querySelectorAll(".preset.on").forEach(e => e.classList.remove("on"));

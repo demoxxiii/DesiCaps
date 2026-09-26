@@ -1,7 +1,7 @@
 // DesiCaps caption engine (browser side). Mirrors app/engine.py 1:1 so the preview
 // matches the rendered MP4. Coordinates are in video pixels.
 const DC = (() => {
-  const PAGE_IN = 0.20, WORD_POP = 0.14, PAGE_HOLD = 0.60;
+  const PAGE_IN = 0.20, WORD_POP = 0.14, PAGE_HOLD = 0.60, WORD_RISE = 0.28;
   const PUNCT_RE = /^["'“‘(\[]+|["'”’)\],.!?;:।…]+$/g;
 
   function displayText(w, st) {
@@ -61,6 +61,31 @@ const DC = (() => {
     return 1 + (s - 1) * easeOutBack((t - ws) / WORD_POP, 2.5);
   }
 
+  // words appear as spoken, fading + rising in (wordAnim "rise")
+  function wordRise(st, t, ws) {
+    if (st.wordAnim !== "rise") return [true, 1, 0];
+    if (ws > t + 1e-6) return [false, 0, 0];
+    const e = easeOutCubic((t - ws) / WORD_RISE);
+    return [true, e, (1 - e) * 0.35];
+  }
+  const cleanLen = w => (w.text || "").replace(PUNCT_RE, "").length;
+  // 0 normal, 1/2 emphasis; pages with no marked word can emphasise their longest word (emphAuto)
+  function emphOf(words, page, i, st) {
+    const h = words[i].hl || 0;
+    if (h) return h;
+    if (st.emphAuto === "longest" && page.i1 > page.i0) {
+      let any = false, best = page.i0;
+      for (let j = page.i0; j <= page.i1; j++) {
+        if (words[j].hl) any = true;
+        if (cleanLen(words[j]) >= cleanLen(words[best])) best = j;
+      }
+      if (!any) return i === best ? 1 : 0;
+    }
+    return 0;
+  }
+  const wordFont = (st, em) => (em && st.emphFont) ? [st.emphFont, +st.emphScale || 1] : [st.font, 1];
+  const isDiff = st => st.blend === "difference";
+
   // ---------- fonts / emoji
   const loaded = new Set();
   async function loadFont(name) {
@@ -88,13 +113,16 @@ const DC = (() => {
   }
 
   const mctx = document.createElement("canvas").getContext("2d");
-  function fontStr(st, px) { return `${Math.max(1, Math.round(px))}px "${st.font}"`; }
-  function metrics(st, px) {
-    mctx.font = fontStr(st, px);
+  function fontStr(st, px, name) { return `${Math.max(1, Math.round(px))}px "${name || st.font}"`; }
+  function loadStyleFonts(st) {
+    return Promise.all([st.font, st.emphFont].filter(Boolean).map(f => loadFont(f).catch(() => {})));
+  }
+  function metrics(st, px, name) {
+    mctx.font = fontStr(st, px, name);
     const m = mctx.measureText("Hg");
     return { asc: m.fontBoundingBoxAscent, desc: m.fontBoundingBoxDescent };
   }
-  const baselineShift = (st, px) => { const m = metrics(st, px); return (m.asc - m.desc) / 2; };
+  const baselineShift = (st, px, name) => { const m = metrics(st, px, name); return (m.asc - m.desc) / 2; };
   const unit = (W, H) => Math.min(W, H) / 1080;
 
   function layout(words, page, st, W, H) {
@@ -106,9 +134,11 @@ const DC = (() => {
     const maxw = (st.maxWidth ?? 0.82) * W;
     const items = [];
     for (let i = page.i0; i <= page.i1; i++) {
-      const text = displayText(words[i], st);
-      items.push({ text, idx: i, w: mctx.measureText(text).width });
+      const text = displayText(words[i], st), em = emphOf(words, page, i, st), [fname, mult] = wordFont(st, em);
+      mctx.font = fontStr(st, fs * mult, fname);
+      items.push({ text, idx: i, em, font: fname, mult, w: mctx.measureText(text).width });
     }
+    mctx.font = fontStr(st, fs);
     const lines = []; let cur = [], curw = 0;
     for (const it of items) {
       let add = it.w + (cur.length ? space : 0);
@@ -141,8 +171,14 @@ const DC = (() => {
 
   let shadowCanvas = null;
   // Draw captions for time t onto ctx (already scaled to video pixels). Returns page index or -1.
-  function draw(ctx, project, t, W, H, pgs, redraw) {
+  // layer "normal": everything (for 'difference' styles: all but the text)
+  // layer "diff": only the text of a 'difference' style, in white — draw it on a canvas with
+  //               mix-blend-mode / composite "difference" over the video for the negative look
+  function draw(ctx, project, t, W, H, pgs, redraw, layer) {
     const words = project.words, st = project.style;
+    layer = layer || "normal";
+    const diff = isDiff(st);
+    if (layer === "diff" && !diff) return -1;
     pgs = pgs || pages(words);
     const pi = pgs.findIndex(p => p.start <= t && t < p.end);
     if (pi < 0) return -1;
@@ -155,7 +191,7 @@ const DC = (() => {
     const stroke = Math.round((st.stroke || 0) * k * ps);
     const tx = (x, y) => [W / 2 + (x - W / 2) * ps, cy + (y - cy) * ps + yoff];
 
-    if (st.pageBg) {
+    if (st.pageBg && layer === "normal") {
       const pad = fs * 0.35;
       const [x0, y0] = tx(box[0] - pad, box[1] - pad * 0.6), [x1, y1] = tx(box[2] + pad, box[3] + pad * 0.6);
       ctx.fillStyle = rgba(st.pageBgColor, st.pageBgOpacity * pop);
@@ -166,31 +202,43 @@ const DC = (() => {
     for (const it of items) {
       const w = words[it.idx];
       if (mode === "reveal" && w.start > t) continue;
-      const isAct = it.idx === a, ws = wordScale(st, isAct, t, w.start);
-      const [x, y] = tx(it.cx, it.cy);
+      const [vis, ra, ry] = wordRise(st, t, w.start);
+      if (!vis) continue;
+      const isAct = it.idx === a, ws = st.wordAnim === "rise" ? 1 : wordScale(st, isAct, t, w.start);
+      const [x, y] = tx(it.cx, it.cy + ry * fs);
       let fill = st.textColor;
-      if (w.hl === 1) fill = st.emph1; else if (w.hl === 2) fill = st.emph2;
+      if (it.em === 1) fill = st.emph1; else if (it.em === 2) fill = st.emph2;
       if (isAct && hl === "color") fill = st.activeColor;
       if (isAct && hl === "box") fill = st.boxTextColor;
-      let alpha = pop;
+      let alpha = pop * ra;
       if (mode === "dim" && w.start > t) alpha *= st.dimOpacity ?? 0.35;
-      glyphs.push({ it, x, y, size: fs * ps * ws, fill, alpha, isAct, ws });
+      glyphs.push({ it, x, y, size: fs * ps * ws * it.mult, fill, alpha, isAct, ws });
+    }
+
+    if (layer === "diff") {  // white text mask
+      for (const g of glyphs) {
+        ctx.font = fontStr(st, g.size, g.it.font); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+        ctx.globalAlpha = g.alpha; ctx.fillStyle = "#FFFFFF";
+        ctx.fillText(g.it.text, g.x, g.y + baselineShift(st, g.size, g.it.font));
+      }
+      ctx.globalAlpha = 1;
+      return pi;
     }
 
     if (hl === "box") for (const g of glyphs) {
       if (!g.isAct) continue;
       const pad = ((st.boxPad ?? 14) + (st.stroke || 0)) * k * ps * g.ws;
-      ctx.font = fontStr(st, g.size); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-      const m = ctx.measureText(g.it.text), by = g.y + baselineShift(st, g.size);
+      ctx.font = fontStr(st, g.size, g.it.font); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      const m = ctx.measureText(g.it.text), by = g.y + baselineShift(st, g.size, g.it.font);
       ctx.fillStyle = rgba(st.boxColor, g.alpha);
       roundRect(ctx, g.x - m.actualBoundingBoxLeft - pad, by - m.actualBoundingBoxAscent - pad * 0.7,
         g.x + m.actualBoundingBoxRight + pad, by + m.actualBoundingBoxDescent + pad * 0.7, (st.boxRadius ?? 18) * k * ps * g.ws);
     }
 
     const textPass = (c, color, dy, strokeColor) => {
-      for (const g of [...glyphs].sort((p, q) => p.isAct - q.isAct)) {
-        c.font = fontStr(st, g.size); c.textAlign = "center"; c.textBaseline = "alphabetic";
-        const y = g.y + dy + baselineShift(st, g.size), sw = Math.round(stroke * (color ? 1 : g.ws));
+      for (const g of (diff ? [] : [...glyphs].sort((p, q) => p.isAct - q.isAct))) {
+        c.font = fontStr(st, g.size, g.it.font); c.textAlign = "center"; c.textBaseline = "alphabetic";
+        const y = g.y + dy + baselineShift(st, g.size, g.it.font), sw = Math.round(stroke * (color ? 1 : g.ws));
         c.globalAlpha = g.alpha;
         if (sw > 0) {
           c.lineJoin = "round"; c.miterLimit = 2; c.lineWidth = sw * 2;
@@ -201,7 +249,7 @@ const DC = (() => {
       c.globalAlpha = 1;
     };
 
-    if ((st.shadowOpacity || 0) > 0 && ctx.canvas.width > 0 && ctx.canvas.height > 0) {
+    if ((st.shadowOpacity || 0) > 0 && !diff && ctx.canvas.width > 0 && ctx.canvas.height > 0) {
       const cw = ctx.canvas.width, ch = ctx.canvas.height;
       if (!shadowCanvas) shadowCanvas = document.createElement("canvas");
       if (shadowCanvas.width !== cw || shadowCanvas.height !== ch) { shadowCanvas.width = cw; shadowCanvas.height = ch; }
@@ -233,5 +281,5 @@ const DC = (() => {
     return pi;
   }
 
-  return { regroup, pages, draw, layout, loadFont, displayText, activeIndex, preloadEmoji, PAGE_IN };
+  return { regroup, pages, draw, layout, loadFont, loadStyleFonts, displayText, activeIndex, preloadEmoji, isDiff, PAGE_IN, WORD_RISE };
 })();

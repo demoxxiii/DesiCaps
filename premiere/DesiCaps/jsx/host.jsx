@@ -131,8 +131,27 @@ function dc_import(path) {
 
 function dc_time(sec) { var t = new Time(); t.seconds = sec; return t; }
 
+/** Try to set a clip's Opacity blend mode to Difference (for the negative-text layer). */
+function dc_setDifference(clip) {
+    try {
+        for (var i = 0; i < clip.components.numItems; i++) {
+            var c = clip.components[i];
+            if (c.displayName !== "Opacity" && c.matchName !== "AE.ADBE Opacity") continue;
+            for (var j = 0; j < c.properties.numItems; j++) {
+                var p = c.properties[j];
+                if (p.displayName === "Blend Mode") {
+                    // Premiere's internal code for "Difference"
+                    p.setValue(22, true);
+                    return true;
+                }
+            }
+        }
+    } catch (e) {}
+    return false;
+}
+
 /** Put the caption layer (.mov with alpha) on a new video track above everything, at `start` seconds. */
-function dc_place(path, start) {
+function dc_place(path, start, blend) {
     try {
         var seq = app.project.activeSequence;
         if (!seq) return dc_err("Open a sequence first.");
@@ -157,7 +176,16 @@ function dc_place(path, start) {
             if (!track) return dc_err("No free video track. Add an empty track above your video and try again.");
         }
         track.overwriteClip(item, dc_time(start));
-        return dc_json({ ok: true, track: track.name });
+        var blended = false;
+        if (blend === "difference") {
+            for (var k = 0; k < track.clips.numItems; k++) {
+                var cl = track.clips[k];
+                if (Math.abs(cl.start.seconds - start) < 0.05 && cl.projectItem && dc_norm(cl.projectItem.getMediaPath()) === dc_norm(path)) {
+                    blended = dc_setDifference(cl); break;
+                }
+            }
+        }
+        return dc_json({ ok: true, track: track.name, blend: blended });
     } catch (e) {
         return dc_err("Premiere error: " + e.toString());
     }

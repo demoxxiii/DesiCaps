@@ -122,6 +122,43 @@ def word_scale(style, active, t, wstart):
     return 1 + (s - 1) * ease_out_back((t - wstart) / WORD_POP, 2.5)
 
 
+WORD_RISE = 0.28   # seconds for the "rise" word entrance
+
+
+def word_rise(style, t, wstart):
+    """-> (visible, opacity, y offset in font sizes) for wordAnim == 'rise' (words appear as spoken)."""
+    if style.get("wordAnim") != "rise":
+        return True, 1.0, 0.0
+    if wstart > t + 1e-6:
+        return False, 0.0, 0.0
+    e = ease_out_cubic((t - wstart) / WORD_RISE)
+    return True, e, (1 - e) * 0.35
+
+
+def emph_of(words, page, i, style):
+    """0 normal, 1/2 emphasis colour. Pages without marked words can emphasise their last word (emphLast)."""
+    h = words[i].get("hl") or 0
+    if h:
+        return h
+    if style.get("emphAuto") == "longest" and page["i1"] > page["i0"]:
+        rng = range(page["i0"], page["i1"] + 1)
+        if not any(words[j].get("hl") for j in rng):
+            best = max(rng, key=lambda j: (len(PUNCT_RE.sub("", words[j].get("text", ""))), j))
+            return 1 if i == best else 0
+    return 0
+
+
+def word_font(style, emph):
+    """(font name, size multiplier) of a word."""
+    if emph and style.get("emphFont"):
+        return style["emphFont"], float(style.get("emphScale", 1.0))
+    return style["font"], 1.0
+
+
+def is_diff(style):
+    return style.get("blend") == "difference"
+
+
 def hex_rgb(h):
     h = h.lstrip("#")
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
@@ -183,7 +220,10 @@ def layout(words, page, style, W, H):
     items = []
     for i in range(page["i0"], page["i1"] + 1):
         txt = display_text(words[i], style)
-        items.append({"text": txt, "idx": i, "w": f.getlength(txt)})
+        em = emph_of(words, page, i, style)
+        fname, mult = word_font(style, em)
+        items.append({"text": txt, "idx": i, "em": em, "font": fname, "mult": mult,
+                      "w": font(fname, fs * mult).getlength(txt)})
     lines, cur, curw = [], [], 0.0
     for it in items:
         add = it["w"] + (space if cur else 0)
@@ -228,18 +268,26 @@ def frame_state(project, t, pgs=None):
             a = active_index(words, p, t)
             pu = clamp((t - p["start"]) / PAGE_IN)
             wu = clamp((t - words[a]["start"]) / WORD_POP) if a is not None else 1
+            if style.get("wordAnim") == "rise" and a is not None:
+                wu = clamp((t - words[a]["start"]) / WORD_RISE)
             return (pi, a, round(pu, 3), round(wu, 3))
     return None
 
 
 # ---------------------------------------------------------------- drawing
-def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None):
-    """RGBA image (W x bh) of captions at time t; the band starts at y=oy. None if empty."""
+def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None, layer="normal"):
+    """RGBA image (W x bh) of captions at time t; the band starts at y=oy. None if empty.
+
+    layer="normal": everything drawn normally (for 'difference' styles: all but the text).
+    layer="diff":   only the text of a 'difference' style, in white (a mask; None for other styles)."""
     words = project["words"]
     style = project["style"]
     pgs = pgs if pgs is not None else pages(words)
     page = next((p for p in pgs if p["start"] <= t < p["end"]), None)
     if page is None:
+        return None
+    diff = is_diff(style)
+    if layer == "diff" and not diff:
         return None
     k = unit(W, H)
     items, box, fs, cy = layout(words, page, style, W, H)
@@ -257,7 +305,7 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None):
         return W / 2 + (x - W / 2) * ps, cy + (y - cy) * ps + yoff - oy
 
     # page background
-    if style.get("pageBg"):
+    if style.get("pageBg") and layer == "normal":
         pad = fs * 0.35
         x0, y0 = tx(box[0] - pad, box[1] - pad * 0.6)
         x1, y1 = tx(box[2] + pad, box[3] + pad * 0.6)
@@ -273,22 +321,36 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None):
         w = words[i]
         if mode == "reveal" and w["start"] > t:
             continue
+        vis, ra, ry = word_rise(style, t, w["start"])
+        if not vis:
+            continue
         is_act = i == a
-        ws = word_scale(style, is_act, t, w["start"])
-        x, y = tx(it["cx"], it["cy"])
+        ws = word_scale(style, is_act, t, w["start"]) if style.get("wordAnim") != "rise" else 1.0
+        x, y = tx(it["cx"], it["cy"] + ry * fs)
         fill = style["textColor"]
-        if w.get("hl") == 1:
+        if it["em"] == 1:
             fill = style["emph1"]
-        elif w.get("hl") == 2:
+        elif it["em"] == 2:
             fill = style["emph2"]
         if is_act and hl == "color":
             fill = style["activeColor"]
         if is_act and hl == "box":
             fill = style["boxTextColor"]
-        alpha = pop
+        alpha = pop * ra
         if mode == "dim" and w["start"] > t:
             alpha *= style.get("dimOpacity", 0.35)
-        glyphs.append((it, x, y, fs * ps * ws, fill, alpha, is_act, ws))
+        glyphs.append((it, x, y, fs * ps * ws * it["mult"], fill, alpha, is_act, ws))
+
+    if layer == "diff":   # white text mask; the video is inverted where it is drawn
+        for it, x, y, size, fill, alpha, is_act, ws in glyphs:
+            lay = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
+            fnt = font(it["font"], size)
+            ImageDraw.Draw(lay).text((x, y + baseline_shift(fnt)), it["text"], font=fnt, anchor="ms",
+                                     fill=(255, 255, 255, 255))
+            if alpha < 1:
+                lay.putalpha(lay.getchannel("A").point(lambda v, al=alpha: int(v * al)))
+            img.alpha_composite(lay)
+        return img
 
     # active box (drawn under text)
     if hl == "box":
@@ -296,7 +358,7 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None):
             if not is_act:
                 continue
             pad = (style["boxPad"] + style.get("stroke", 0)) * k * ps * ws
-            fnt = font(style["font"], size)
+            fnt = font(it["font"], size)
             by = y + baseline_shift(fnt)
             l, tp, r, b = fnt.getbbox(it["text"], anchor="ms")
             lay = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
@@ -307,13 +369,13 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None):
             img.alpha_composite(lay)
 
     # shadow pass
-    if style.get("shadowOpacity", 0) > 0:
+    if style.get("shadowOpacity", 0) > 0 and not diff:
         sh = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
         d = ImageDraw.Draw(sh)
         sc = hex_rgb(style["shadowColor"])
         sy = style.get("shadowY", 0) * k * ps
         for it, x, y, size, fill, alpha, is_act, ws in glyphs:
-            fnt = font(style["font"], size)
+            fnt = font(it["font"], size)
             d.text((x, y + sy + baseline_shift(fnt)), it["text"], font=fnt, anchor="ms",
                    fill=sc + (int(255 * alpha),), stroke_width=stroke, stroke_fill=sc + (int(255 * alpha),))
         blur = style.get("shadowBlur", 0) * k
@@ -323,13 +385,13 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None):
             sh.putalpha(sh.getchannel("A").point(lambda v: int(v * style["shadowOpacity"])))
         img.alpha_composite(sh)
 
-    # text pass (non-active first so the popped word sits on top)
-    for g in sorted(glyphs, key=lambda g: g[6]):
+    # text pass (non-active first so the popped word sits on top); 'difference' text lives in the diff layer
+    for g in ([] if diff else sorted(glyphs, key=lambda g: g[6])):
         it, x, y, size, fill, alpha, is_act, ws = g
         lay = Image.new("RGBA", (CW, CH), (0, 0, 0, 0)) if alpha < 1 else img
         d = ImageDraw.Draw(lay)
         a8 = 255
-        fnt = font(style["font"], size)
+        fnt = font(it["font"], size)
         d.text((x, y + baseline_shift(fnt)), it["text"], font=fnt, anchor="ms",
                fill=hex_rgb(fill) + (a8,), stroke_width=int(round(stroke * ws)),
                stroke_fill=hex_rgb(style["strokeColor"]) + (a8,))

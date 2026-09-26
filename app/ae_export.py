@@ -59,12 +59,14 @@ var DATA = __DATA__;
         if (!f.exists) { warnings.push("Missing emoji " + code); return null; }
         var it = proj.importFile(new ImportOptions(f)); it.parentFolder = assetFolder; emojiCache[code] = it; return it;
     }
-    function styleText(layer, txt, size, fillHex) {
+    var DIFF = S.blend === "difference";
+    function styleText(layer, txt, size, fillHex, fontName) {
         var tp = layer.property("ADBE Text Properties").property("ADBE Text Document");
         var td = tp.value;
         try { td.resetCharStyle(); td.resetParagraphStyle(); } catch (e) {}
-        td.text = txt; td.font = S.font; td.fontSize = size; td.applyFill = true; td.fillColor = hex(fillHex || S.textColor);
-        if (STROKE > 0) { td.applyStroke = true; td.strokeColor = hex(S.strokeColor); td.strokeWidth = STROKE * 2; td.strokeOverFill = false; }
+        td.text = txt; td.font = fontName || S.font; td.fontSize = size; td.applyFill = true;
+        td.fillColor = hex(DIFF ? "#FFFFFF" : (fillHex || S.textColor));
+        if (STROKE > 0 && !DIFF) { td.applyStroke = true; td.strokeColor = hex(S.strokeColor); td.strokeWidth = STROKE * 2; td.strokeOverFill = false; }
         else td.applyStroke = false;
         td.justification = ParagraphJustification.CENTER_JUSTIFY;
         tp.setValue(td);
@@ -101,7 +103,8 @@ var DATA = __DATA__;
         var ws = [];
         for (var wi = P.words.length - 1; wi >= 0; wi--) {  // add in reverse so first word ends on top
             var w = P.words[wi];
-            var L = pc.layers.addText(w.t); styleText(L, w.t, FS, w.hl === 1 ? S.emph1 : w.hl === 2 ? S.emph2 : S.textColor); L.name = w.t;
+            var emF = (w.hl && S.emphFont) ? S.emphFont : null, emS = emF ? (S.emphScale || 1) : 1;
+            var L = pc.layers.addText(w.t); styleText(L, w.t, FS * emS, w.hl === 1 ? S.emph1 : w.hl === 2 ? S.emph2 : S.textColor, emF); L.name = w.t;
             var r = L.sourceRectAtTime(0, false);
             ws.unshift({ w: w, L: L, r: r, width: r.width - STROKE * 2 });
         }
@@ -201,6 +204,7 @@ var DATA = __DATA__;
         // place line precomp in the main comp with its entrance animation
         var PL = main.layers.add(pc);
         PL.startTime = P.start; PL.inPoint = P.start; PL.outPoint = P.end;
+        if (DIFF) { try { PL.blendingMode = BlendingMode.DIFFERENCE; } catch (e) {} }  // negative text
         PL.moveBefore(ctrl); ctrl.moveToBeginning();
         var ptr = PL.property("ADBE Transform Group");
         ptr.property("ADBE Anchor Point").setValue([W / 2, CY]);
@@ -240,7 +244,7 @@ def build_data(project, emoji_dir):
         for i in range(p["i0"], p["i1"] + 1):
             w = words[i]
             ws.append({"t": engine.display_text(w, style), "s": round(w["start"], 3), "e": round(w["end"], 3),
-                       "hl": w.get("hl", 0) or 0, "emoji": w.get("emoji") or ""})
+                       "hl": engine.emph_of(words, p, i, style), "emoji": w.get("emoji") or ""})
         label = " ".join(x["t"] for x in ws)
         pages.append({"start": round(p["start"], 3), "end": round(p["end"], 3), "label": label, "words": ws})
     return {"name": project["name"], "video": project["video"].replace("\\", "/"),

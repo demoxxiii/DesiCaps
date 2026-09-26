@@ -8,8 +8,8 @@
 | FFmpeg (GPL build: BtbN on Windows, martin-riedl.de on macOS) | GPL-3.0 | https://ffmpeg.org, https://github.com/BtbN/FFmpeg-Builds |
 | FriBiDi (Windows, text shaping) | LGPL-2.1 | https://github.com/fribidi/fribidi |
 | Twemoji graphics | CC-BY 4.0 (© Twitter, Inc. and other contributors) | https://github.com/jdecked/twemoji |
-| Poppins, Anton, Bebas Neue, Bangers, Archivo Black, Mukta | SIL Open Font License 1.1 | https://fonts.google.com |
-| Luckiest Guy | Apache-2.0 | https://fonts.google.com |
+| Poppins, Anton, Bebas Neue, Bangers, Archivo Black, Mukta, Kalam, Great Vibes, DM Serif Display, Space Mono | SIL Open Font License 1.1 | https://fonts.google.com |
+| Luckiest Guy, Permanent Marker | Apache-2.0 | https://fonts.google.com |
 | Pillow | MIT-CMU | https://python-pillow.org |
 | FastAPI, Starlette, Uvicorn | MIT / BSD-3-Clause | https://fastapi.tiangolo.com |
 | pywebview | BSD-3-Clause | https://pywebview.flowrl.com |
