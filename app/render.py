@@ -138,6 +138,72 @@ def render(project, out_path, progress=None, encoder=None):
     return out_path
 
 
+def _rate(fps):
+    """ffmpeg frame-rate string; NTSC rates as exact fractions."""
+    for nominal, frac in ((23.976, "24000/1001"), (29.97, "30000/1001"), (59.94, "60000/1001"), (47.952, "48000/1001")):
+        if abs(fps - nominal) < 0.01:
+            return frac
+    return str(round(fps, 4))
+
+
+def render_overlay(project, out_path, W, H, fps, t0, t1, progress=None):
+    """Transparent caption layer (ProRes 4444 with alpha, W x H) covering media time t0..t1.
+    Used by the Premiere Pro panel: the .mov goes on a track above the clip."""
+    t1 = max(t1, t0 + 1.0 / fps)
+    oy, bh = engine.compute_band(project, W, H)
+    pgs = engine.pages(project["words"])
+    nframes = max(1, int(round((t1 - t0) * fps)))
+    rate = _rate(fps)
+    cmd = [paths.ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
+           "-f", "rawvideo", "-pix_fmt", "rgba", "-s", f"{W}x{bh}", "-r", rate, "-i", "-",
+           "-vf", f"pad={W}:{H}:0:{oy}:color=0x00000000,format=yuva444p10le",
+           "-c:v", "prores_ks", "-profile:v", "4444", "-pix_fmt", "yuva444p10le",
+           "-vendor", "apl0", "-r", rate, out_path]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, **HC)
+    blank = bytes(W * bh * 4)
+    last_key, last_bytes = None, blank
+    try:
+        for n in range(nframes):
+            t = t0 + n / fps
+            key = engine.frame_state(project, t, pgs)
+            if key is None:
+                buf = blank
+            elif key == last_key:
+                buf = last_bytes
+            else:
+                im = engine.draw_frame(project, t, W, H, pgs, oy=oy, bh=bh)
+                buf = im.tobytes() if im is not None else blank
+            last_key, last_bytes = key, buf
+            proc.stdin.write(buf)
+            if progress and n % 15 == 0:
+                progress(n / nframes)
+        proc.stdin.close()
+    except BrokenPipeError:
+        pass
+    err = proc.stderr.read().decode(errors="ignore")
+    if proc.wait() != 0:
+        raise RuntimeError("ffmpeg failed: " + err[-1500:])
+    if progress:
+        progress(1.0)
+    return out_path
+
+
+def to_srt_range(project, t0, t1):
+    """SRT of the caption pages inside media time t0..t1, re-timed to start at 0 (for Premiere captions)."""
+    def ts(x):
+        ms = max(0, int(round(x * 1000)))
+        return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
+    words, style = project["words"], dict(project["style"], uppercase=bool(project["style"].get("uppercase")))
+    out, n = [], 0
+    for p in engine.pages(words):
+        if p["end"] <= t0 or p["start"] >= t1:
+            continue
+        n += 1
+        text = " ".join(engine.display_text(words[i], style) for i in range(p["i0"], p["i1"] + 1))
+        out.append(f"{n}\n{ts(max(p['start'], t0) - t0)} --> {ts(min(p['end'], t1) - t0)}\n{text}\n")
+    return "\n".join(out)
+
+
 def still(project, t, out_png):
     """Composite one frame of video + captions to a PNG (for thumbnails / QA)."""
     info = probe(project["video"])

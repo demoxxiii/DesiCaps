@@ -31,6 +31,7 @@ datas += tree("app/static", "app/static")
 datas += [(os.path.join(ROOT, "app", "presets.json"), "app")]
 datas += tree("assets", "assets")
 datas += tree("models", "models")
+datas += tree("premiere", "premiere")   # Premiere Pro panel (installed from the app)
 binaries = [(p, "bin") for p, _ in tree("bin", "bin")]
 
 hidden = []

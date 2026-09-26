@@ -315,6 +315,76 @@ def do_srt(pid: str):
     return {"path": out, "url": "/exports/" + os.path.basename(out)}
 
 
+# ---------------------------------------------------------------- Premiere Pro panel
+PREMIERE_OUT = os.path.join(EXPORTS, "Premiere")
+UI_PENDING = {"open": None}
+
+
+@app.post("/api/premiere/open")
+async def premiere_open(req: Request):
+    """Project for a media file on disk; reuses the newest project of the same file (keeps edits)."""
+    body = await req.json()
+    path = os.path.normpath(body.get("path", "").strip().strip('"'))
+    if not os.path.isfile(path):
+        raise HTTPException(400, "File not found: " + path)
+    best = None
+    if os.path.isdir(PROJ):
+        for d in os.listdir(PROJ):
+            f = os.path.join(PROJ, d, "project.json")
+            try:
+                p = json.load(open(f, encoding="utf-8"))
+            except Exception:
+                continue
+            if os.path.normcase(os.path.normpath(p.get("video", ""))) == os.path.normcase(path):
+                if best is None or p.get("created", 0) > best.get("created", 0):
+                    best = p
+    return best or new_project(path, os.path.splitext(os.path.basename(path))[0])
+
+
+@app.post("/api/project/{pid}/premiere_overlay")
+async def premiere_overlay(pid: str, req: Request):
+    body = await req.json()
+    W, H = int(body.get("width", 1080)), int(body.get("height", 1920))
+    W, H = W - W % 2, H - H % 2
+    fps = float(body.get("fps", 30) or 30)
+    t0, t1 = float(body.get("t0", 0)), float(body.get("t1", 0))
+
+    def work(prog):
+        p = load(pid)
+        if not p["words"]:
+            raise RuntimeError("Transcribe the clip first.")
+        end = t1 if t1 > t0 else max(w["end"] for w in p["words"]) + 1.0
+        out = os.path.join(ensure_dir(PREMIERE_OUT),
+                           f"{slug(p['name'])}_captions_{time.strftime('%H%M%S')}.mov")
+        R.render_overlay(p, out, W, H, fps, t0, end, progress=lambda f: prog(f, "Rendering caption layer"))
+        return {"path": out}
+
+    return start_job("premiere_overlay", work)
+
+
+@app.post("/api/project/{pid}/premiere_srt")
+async def premiere_srt(pid: str, req: Request):
+    body = await req.json()
+    p = load(pid)
+    t0, t1 = float(body.get("t0", 0)), float(body.get("t1", 0)) or 1e9
+    out = os.path.join(ensure_dir(PREMIERE_OUT), f"{slug(p['name'])}_{time.strftime('%H%M%S')}.srt")
+    open(out, "w", encoding="utf-8").write(R.to_srt_range(p, t0, t1))
+    return {"path": out}
+
+
+@app.post("/api/ui/open")
+async def ui_open(req: Request):
+    """Ask the DesiCaps window to open a project (used by the Premiere panel's 'Edit words' button)."""
+    UI_PENDING["open"] = (await req.json()).get("pid")
+    return {"ok": True}
+
+
+@app.get("/api/ui/pending")
+def ui_pending():
+    pid, UI_PENDING["open"] = UI_PENDING["open"], None
+    return {"open": pid}
+
+
 @app.post("/api/reveal")
 async def reveal(req: Request):
     """Open the exports folder in Explorer/Finder."""
@@ -368,6 +438,34 @@ def install_fonts():
             shutil.copy2(os.path.join(paths.FONT_DIR, f), os.path.join(dst, f))
             done.append(f)
     return {"installed": done}
+
+
+@app.post("/api/install_premiere")
+def install_premiere():
+    """Install the DesiCaps panel into Premiere Pro (CEP extension, current user)."""
+    src = os.path.join(paths.RES, "premiere", "DesiCaps")
+    if not os.path.isdir(src):
+        raise HTTPException(500, "Panel files missing from this build")
+    if paths.IS_WIN:
+        base = os.path.join(os.environ["APPDATA"], "Adobe", "CEP", "extensions")
+    else:
+        base = os.path.expanduser("~/Library/Application Support/Adobe/CEP/extensions")
+    dst = os.path.join(base, "DesiCaps")
+    shutil.rmtree(dst, ignore_errors=True)
+    shutil.copytree(src, dst)
+    # the panel isn't signed by Adobe's paid program: allow unsigned panels for this user
+    for v in range(9, 14):
+        try:
+            if paths.IS_WIN:
+                import winreg
+                k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf"Software\Adobe\CSXS.{v}")
+                winreg.SetValueEx(k, "PlayerDebugMode", 0, winreg.REG_SZ, "1")
+            else:
+                import subprocess
+                subprocess.run(["defaults", "write", f"com.adobe.CSXS.{v}", "PlayerDebugMode", "1"], check=False)
+        except Exception:
+            pass
+    return {"path": dst}
 
 
 # ---------------------------------------------------------------- AI enhance (local Ollama)

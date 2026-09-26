@@ -623,3 +623,18 @@ async function showAiSetup() {
 }
 $("#aiSetupBtn").onclick = showAiSetup;
 $("#aiClose").onclick = () => $("#aiModal").classList.add("hidden");
+
+// Premiere Pro panel -> "Edit words in DesiCaps": open the requested project here.
+setInterval(async () => {
+  try {
+    const r = await fetch("/api/ui/pending").then(x => x.json());
+    if (r && r.open) { await openProject(r.open); toast("Opened from Premiere Pro — edit words, then click Update in the panel"); }
+  } catch (e) { /* app starting / offline */ }
+}, 1500);
+
+$("#premiereBtn").onclick = async () => {
+  try {
+    await api("/api/install_premiere", { method: "POST", body: {} });
+    toast("Premiere Pro panel installed ✔ Restart Premiere, then open <b>Window → Extensions → DesiCaps</b>. Keep this app open while you use it.", false, 12000);
+  } catch (e) { toast("Couldn't install the panel: " + esc(e.message), true, 0); }
+};
