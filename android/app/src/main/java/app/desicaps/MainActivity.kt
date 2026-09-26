@@ -20,6 +20,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.core.view.WindowInsetsCompat
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -66,11 +67,10 @@ class MainActivity : ComponentActivity() {
         root.addView(web, android.widget.FrameLayout.LayoutParams(-1, -1))
         setContentView(root)
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
-            val t = androidx.core.view.WindowInsetsCompat.Type
-            val bars = insets.getInsets(t.systemBars() or t.displayCutout())
-            val ime = insets.getInsets(t.ime())
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             v.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
-            androidx.core.view.WindowInsetsCompat.CONSUMED
+            WindowInsetsCompat.CONSUMED
         }
         web.settings.apply {
             javaScriptEnabled = true

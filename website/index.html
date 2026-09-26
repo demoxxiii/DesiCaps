@@ -158,7 +158,7 @@ h2{font-size:clamp(28px,3.6vw,42px);line-height:1.12;letter-spacing:-.8px;margin
 .yes{color:var(--green)} .no{color:#f87171}
 
 /* download */
-.dl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.dl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
 .dl-card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:28px;display:flex;flex-direction:column}
 .dl-card.rec{border-color:#ff8a1f88;box-shadow:0 0 0 1px #ff8a1f55 inset}
 .dl-card .os{display:flex;align-items:center;gap:12px;margin-bottom:6px}
@@ -445,7 +445,18 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
           <li>Saves to your gallery, share straight to Reels</li>
         </ul>
         <a class="btn primary" data-dl="android" href="#">Download for Android <span data-size="android"></span></a>
-        <div class="sub">DesiCaps-Android.apk · iPhone version coming later</div>
+        <div class="sub">DesiCaps-Android.apk</div>
+      </div>
+      <div class="dl-card" id="cardIos">
+        <div class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.4 2-3.5 2-3.6-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.9-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.4 2.9 2.3 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.3 0 2.1-1.1 2.8-2.2.9-1.3 1.3-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.8zM14.2 5.6c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z"/></svg><h3>iPhone</h3><span class="badge">Recommended for you</span></div>
+        <ul>
+          <li>iPhone / iPad on iOS 16 or newer</li>
+          <li>Speech runs on the Apple GPU (Metal) — fast</li>
+          <li>Saves to Photos, share straight to Reels</li>
+          <li>Install with Sideloadly or AltStore (not the App Store yet)</li>
+        </ul>
+        <a class="btn primary" data-dl="ios" href="#">Download for iPhone <span data-size="ios"></span></a>
+        <div class="sub">DesiCaps-iOS.ipa · <a href="#install" data-tab-link="tab-ios">how to install</a></div>
       </div>
     </div>
 
@@ -454,6 +465,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
         <button class="tab" role="tab" id="tab-win" aria-controls="guide-win" aria-selected="true">First launch on Windows</button>
         <button class="tab" role="tab" id="tab-mac" aria-controls="guide-mac" aria-selected="false">First launch on Mac</button>
         <button class="tab" role="tab" id="tab-android" aria-controls="guide-android" aria-selected="false">Install on Android</button>
+        <button class="tab" role="tab" id="tab-ios" aria-controls="guide-ios" aria-selected="false">Install on iPhone</button>
       </div>
       <div class="guide" role="tabpanel" id="guide-win" aria-labelledby="tab-win">
         <ol>
@@ -476,6 +488,14 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
           <li>If Play Protect warns you, tap <b>More details → Install anyway</b>. Open DesiCaps and pick a video.</li>
         </ol>
       </div>
+      <div class="guide" role="tabpanel" id="guide-ios" aria-labelledby="tab-ios" hidden>
+        <ol>
+          <li>On your PC or Mac, download <b>DesiCaps-iOS.ipa</b> and the free <b>Sideloadly</b> app (sideloadly.io). Connect your iPhone with a cable.</li>
+          <li>Drag the .ipa into Sideloadly, type your Apple ID and click <b>Start</b>.</li>
+          <li>On the iPhone: <b>Settings → General → VPN &amp; Device Management</b> → trust your Apple ID. On iOS 16+ also turn on <b>Settings → Privacy &amp; Security → Developer Mode</b>.</li>
+          <li>With a free Apple ID the app works for 7 days — then repeat step 2 (your captions and settings stay). AltStore can refresh it automatically.</li>
+        </ol>
+      </div>
       <p class="note">Why the warning? DesiCaps is free and not signed with a paid Apple/Microsoft developer certificate yet. You only confirm it once. The full source code is public on <a data-gh href="#">GitHub</a>.</p>
     </div>
   </div>
@@ -491,7 +511,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
     <details><summary>Will it run on my laptop?</summary><p>Yes, on most Windows 10/11 PCs from the last ~10 years and any Apple Silicon Mac. A graphics card makes transcription much faster; without one it still works on the CPU, just slower.</p></details>
     <details><summary>Do I need After Effects?</summary><p>No. DesiCaps renders the finished MP4 itself. The After Effects export is there for editors who want to fine-tune animations in AE.</p></details>
     <details><summary>What are “AI Style” and “Post kit”?</summary><p>Optional extras powered by a free local AI (Ollama). AI Style colours the punch words and adds emoji; Post kit writes hook titles, captions and hashtags in your Hinglish tone. The app guides you through the one-time setup.</p></details>
-    <details><summary>Is there a phone app?</summary><p>Yes — DesiCaps for Android (Android 10+) makes the captions on the phone itself, with the Hinglish model built in and bigger models as optional downloads. Longer videos are faster on a PC. An iPhone version may come later.</p></details>
+    <details><summary>Is there a phone app?</summary><p>Yes — DesiCaps for Android (Android 10+) makes the captions on the phone itself, with the Hinglish model built in and bigger models as optional downloads. Longer videos are faster on a PC. The iPhone version is installed with Sideloadly or AltStore for now (it isn't on the App Store yet).</p></details>
     <details><summary>Intel Mac?</summary><p>Not in this version — the Mac app needs an Apple Silicon (M-series) Mac.</p></details>
   </div>
 </section>
@@ -524,7 +544,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
 (() => {
   /* ▼▼ CONFIG ▼▼ */
   const REPO = "demoxxiii/DesiCaps";           // GitHub "user/repo" that publishes the releases
-  const FILES = { win: "DesiCaps-Windows-Setup.exe", mac: "DesiCaps-Mac-AppleSilicon.dmg", android: "DesiCaps-Android.apk" };
+  const FILES = { win: "DesiCaps-Windows-Setup.exe", mac: "DesiCaps-Mac-AppleSilicon.dmg", android: "DesiCaps-Android.apk", ios: "DesiCaps-iOS.ipa" };
   /* ▲▲ CONFIG ▲▲ */
 
   const GH = `https://github.com/${REPO}`;
@@ -537,7 +557,7 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
   const isMac = /Mac/i.test(plat) || /Macintosh/.test(ua);
   const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
   const isAndroid = /Android/i.test(ua);
-  const mine = isAndroid ? "android" : isMac ? "mac" : "win";
+  const mine = isAndroid ? "android" : /iPhone|iPad|iPod/i.test(ua) ? "ios" : isMac ? "mac" : "win";
 
   // links
   $$("[data-gh]").forEach(a => { a.href = GH; a.rel = "noopener"; });
@@ -552,27 +572,30 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
     const row = document.getElementById("heroCta"), w = row.querySelector('[data-dl="win"]'), m = row.querySelector('[data-dl="mac"]');
     row.prepend(m); m.classList.add("primary"); w.classList.remove("primary");
   }
+  if (isMobile) { const h = document.getElementById("h1"); h.innerHTML = h.innerHTML.replace("own PC.", "own phone."); }
   if (isAndroid) {   // Android phone: the Android download leads
-    const h = document.getElementById("h1"); h.innerHTML = h.innerHTML.replace("own PC.", "own phone.");
     const row = document.getElementById("heroCta"), an = row.querySelector('[data-dl="android"]');
     row.querySelectorAll(".btn").forEach(b => b.classList.remove("primary"));
     an.classList.remove("hidden-cta"); an.classList.add("primary"); row.prepend(an);
   }
-  if (!isMobile || isAndroid) document.getElementById(isAndroid ? "cardAndroid" : isMac ? "cardMac" : "cardWin").classList.add("rec");
+  document.getElementById({ android: "cardAndroid", ios: "cardIos", mac: "cardMac", win: "cardWin" }[mine]).classList.add("rec");
   document.getElementById("yr").textContent = new Date().getFullYear();
 
-  const ANDROID_LINKS = mine === "android" ? '[data-dl="android"],[data-dl="auto"]' : '[data-dl="android"]';
-  // Android: until the APK is part of a full release, offer the public test build
-  function useAndroidBeta() {
-    const url = `${GH}/releases/download/android-test/${FILES.android}`;
-    $$(ANDROID_LINKS).forEach(a => { if (a.getAttribute("href") !== "#download") a.href = url; });
-    $$('#cardAndroid h3').forEach(h => { if (!h.querySelector(".beta")) h.insertAdjacentHTML("beforeend", ' <span class="beta">Beta</span>'); });
-    fetch(`https://api.github.com/repos/${REPO}/releases/tags/android-test`).then(r => r.ok ? r.json() : null).then(rel => {
-      const a = rel && (rel.assets || []).find(x => x.name === FILES.android);
-      if (a) $$('[data-size="android"]').forEach(s => s.textContent = "· " + (a.size / 1048576).toFixed(0) + " MB");
+  // phone apps: until an APK / IPA is part of a full release, offer the public test build
+  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+  const PHONE = { android: "android-test", ios: "ios-test" };
+  const phoneLinks = k => `[data-dl="${k}"]` + (mine === k ? ',[data-dl="auto"]' : "");
+  function useBeta(k) {
+    const url = `${GH}/releases/download/${PHONE[k]}/${FILES[k]}`;
+    $$(phoneLinks(k)).forEach(a => { if (a.getAttribute("href") !== "#download") a.href = url; });
+    const card = k === "android" ? "#cardAndroid" : "#cardIos";
+    $$(card + " h3").forEach(h => { if (!h.querySelector(".beta")) h.insertAdjacentHTML("beforeend", ' <span class="beta">Beta</span>'); });
+    fetch(`https://api.github.com/repos/${REPO}/releases/tags/${PHONE[k]}`).then(r => r.ok ? r.json() : null).then(rel => {
+      const a = rel && (rel.assets || []).find(x => x.name === FILES[k]);
+      if (a) $$(`[data-size="${k}"]`).forEach(s => s.textContent = "· " + (a.size / 1048576).toFixed(0) + " MB");
     }).catch(() => {});
   }
-
+  const useAndroidBeta = () => { useBeta("android"); useBeta("ios"); };
   useAndroidBeta();
   // live release info from GitHub
   fetch(`https://api.github.com/repos/${REPO}/releases/latest`).then(r => r.ok ? r.json() : null).then(rel => {
@@ -580,10 +603,10 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
     const size = n => (n / 1048576).toFixed(0) + " MB";
     const date = new Date(rel.published_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
     const asset = f => (rel.assets || []).find(a => a.name === f);
-    for (const k of ["win", "mac", "android"]) { const a = asset(FILES[k]); if (a) $$(`[data-size="${k}"]`).forEach(s => s.textContent = "· " + size(a.size)); }
-    if (asset(FILES.android)) {   // phone app is part of the full release now
-      $$(ANDROID_LINKS).forEach(a => { if (a.getAttribute("href") !== "#download") a.href = latest(FILES.android); });
-      $$("#cardAndroid .beta").forEach(b => b.remove());
+    for (const k of ["win", "mac", "android", "ios"]) { const a = asset(FILES[k]); if (a) $$(`[data-size="${k}"]`).forEach(s => s.textContent = "· " + size(a.size)); }
+    for (const k of ["android", "ios"]) if (asset(FILES[k])) {   // phone app is part of the full release now
+      $$(phoneLinks(k)).forEach(a => { if (a.getAttribute("href") !== "#download") a.href = latest(FILES[k]); });
+      $$((k === "android" ? "#cardAndroid" : "#cardIos") + " .beta").forEach(b => b.remove());
     }
     const w = asset(FILES[mine]);
     document.getElementById("releaseMeta").innerHTML =
@@ -600,7 +623,8 @@ footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);fon
   const tabs = $$(".tab");
   const pick = id => tabs.forEach(t => { const on = t.id === id; t.setAttribute("aria-selected", on); document.getElementById(t.getAttribute("aria-controls")).hidden = !on; });
   tabs.forEach(t => t.addEventListener("click", () => pick(t.id)));
-  if (isAndroid) pick("tab-android"); else if (isMac) pick("tab-mac");
+  if (isAndroid) pick("tab-android"); else if (/iPhone|iPad|iPod/i.test(ua)) pick("tab-ios"); else if (isMac) pick("tab-mac");
+  $$("[data-tab-link]").forEach(a => a.addEventListener("click", () => pick(a.dataset.tabLink)));
 
   // styles gallery (videos rendered by DesiCaps itself)
   const STYLES = [
