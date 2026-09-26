@@ -156,7 +156,14 @@ def word_font(style, emph):
 
 
 def is_diff(style):
-    return style.get("blend") == "difference"
+    """Does this style have any negative ('difference') text? blend: normal | difference | emph."""
+    return style.get("blend") in ("difference", "emph")
+
+
+def word_diff(style, em):
+    """Is this word drawn as negative text? 'emph' = only the emphasised (accent) words."""
+    b = style.get("blend")
+    return b == "difference" or (b == "emph" and bool(em))
 
 
 def hex_rgb(h):
@@ -224,10 +231,12 @@ def layout(words, page, style, W, H):
         fname, mult = word_font(style, em)
         items.append({"text": txt, "idx": i, "em": em, "font": fname, "mult": mult,
                       "w": font(fname, fs * mult).getlength(txt)})
+    own = bool(style.get("emphLine"))   # accent words sit on a line of their own
     lines, cur, curw = [], [], 0.0
     for it in items:
         add = it["w"] + (space if cur else 0)
-        if cur and curw + add > maxw:
+        brk = own and cur and (it["em"] or cur[-1]["em"])
+        if cur and (brk or curw + add > maxw):
             lines.append((cur, curw))
             cur, curw = [], 0.0
             add = it["w"]
@@ -236,17 +245,21 @@ def layout(words, page, style, W, H):
     if cur:
         lines.append((cur, curw))
     lh = fs * style.get("lineHeight", 1.12)
+    lhs = [lh * max(it["mult"] for it in ln) for ln, _ in lines]   # taller lines for bigger words
     cy = style.get("posY", 0.7) * H
-    top = cy - lh * len(lines) / 2
-    maxlw = 0
-    for li, (ln, lw) in enumerate(lines):
-        x = W / 2 - lw / 2
-        maxlw = max(maxlw, lw)
+    total = sum(lhs)
+    top = cy - total / 2
+    maxlw = max(lw for _, lw in lines)
+    left = style.get("align") == "left"
+    y = top
+    for (ln, lw), h in zip(lines, lhs):
+        x = W / 2 - (maxlw if left else lw) / 2
         for it in ln:
             it["cx"] = x + it["w"] / 2
-            it["cy"] = top + li * lh + lh / 2
+            it["cy"] = y + h / 2
             x += it["w"] + space
-    box = (W / 2 - maxlw / 2, top, W / 2 + maxlw / 2, top + lh * len(lines))
+        y += h
+    box = (W / 2 - maxlw / 2, top, W / 2 + maxlw / 2, top + total)
     return items, box, fs, cy
 
 
@@ -342,7 +355,11 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None, layer="normal"):
         glyphs.append((it, x, y, fs * ps * ws * it["mult"], fill, alpha, is_act, ws))
 
     if layer == "diff":   # white text mask; the video is inverted where it is drawn
+        drew = False
         for it, x, y, size, fill, alpha, is_act, ws in glyphs:
+            if not word_diff(style, it["em"]):
+                continue
+            drew = True
             lay = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
             fnt = font(it["font"], size)
             ImageDraw.Draw(lay).text((x, y + baseline_shift(fnt)), it["text"], font=fnt, anchor="ms",
@@ -350,7 +367,7 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None, layer="normal"):
             if alpha < 1:
                 lay.putalpha(lay.getchannel("A").point(lambda v, al=alpha: int(v * al)))
             img.alpha_composite(lay)
-        return img
+        return img if drew else None
 
     # active box (drawn under text)
     if hl == "box":
@@ -369,12 +386,13 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None, layer="normal"):
             img.alpha_composite(lay)
 
     # shadow pass
-    if style.get("shadowOpacity", 0) > 0 and not diff:
+    plain = [g for g in glyphs if not word_diff(style, g[0]["em"])]
+    if style.get("shadowOpacity", 0) > 0 and plain:
         sh = Image.new("RGBA", (CW, CH), (0, 0, 0, 0))
         d = ImageDraw.Draw(sh)
         sc = hex_rgb(style["shadowColor"])
         sy = style.get("shadowY", 0) * k * ps
-        for it, x, y, size, fill, alpha, is_act, ws in glyphs:
+        for it, x, y, size, fill, alpha, is_act, ws in plain:
             fnt = font(it["font"], size)
             d.text((x, y + sy + baseline_shift(fnt)), it["text"], font=fnt, anchor="ms",
                    fill=sc + (int(255 * alpha),), stroke_width=stroke, stroke_fill=sc + (int(255 * alpha),))
@@ -386,7 +404,7 @@ def draw_frame(project, t, W, H, pgs=None, oy=0, bh=None, layer="normal"):
         img.alpha_composite(sh)
 
     # text pass (non-active first so the popped word sits on top); 'difference' text lives in the diff layer
-    for g in ([] if diff else sorted(glyphs, key=lambda g: g[6])):
+    for g in sorted(plain, key=lambda g: g[6]):
         it, x, y, size, fill, alpha, is_act, ws = g
         lay = Image.new("RGBA", (CW, CH), (0, 0, 0, 0)) if alpha < 1 else img
         d = ImageDraw.Draw(lay)

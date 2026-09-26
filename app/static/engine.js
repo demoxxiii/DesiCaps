@@ -84,7 +84,9 @@ const DC = (() => {
     return 0;
   }
   const wordFont = (st, em) => (em && st.emphFont) ? [st.emphFont, +st.emphScale || 1] : [st.font, 1];
-  const isDiff = st => st.blend === "difference";
+  const isDiff = st => st.blend === "difference" || st.blend === "emph";
+  // is this word negative text? blend "emph" = only the emphasised (accent) words
+  const wordDiff = (st, em) => st.blend === "difference" || (st.blend === "emph" && !!em);
 
   // ---------- fonts / emoji
   const loaded = new Set();
@@ -139,20 +141,26 @@ const DC = (() => {
       items.push({ text, idx: i, em, font: fname, mult, w: mctx.measureText(text).width });
     }
     mctx.font = fontStr(st, fs);
+    const own = !!st.emphLine;   // accent words sit on a line of their own
     const lines = []; let cur = [], curw = 0;
     for (const it of items) {
       let add = it.w + (cur.length ? space : 0);
-      if (cur.length && curw + add > maxw) { lines.push([cur, curw]); cur = []; curw = 0; add = it.w; }
+      const brk = own && cur.length && (it.em || cur[cur.length - 1].em);
+      if (cur.length && (brk || curw + add > maxw)) { lines.push([cur, curw]); cur = []; curw = 0; add = it.w; }
       cur.push(it); curw += add;
     }
     if (cur.length) lines.push([cur, curw]);
-    const lh = fs * (st.lineHeight ?? 1.12), cy = (st.posY ?? 0.7) * H, top = cy - lh * lines.length / 2;
-    let maxlw = 0;
+    const lh = fs * (st.lineHeight ?? 1.12), cy = (st.posY ?? 0.7) * H;
+    const lhs = lines.map(([ln]) => lh * Math.max(...ln.map(it => it.mult)));
+    const total = lhs.reduce((a, b) => a + b, 0), top = cy - total / 2;
+    const maxlw = Math.max(...lines.map(l => l[1])), left = st.align === "left";
+    let y = top;
     lines.forEach(([ln, lw], li) => {
-      let x = W / 2 - lw / 2; maxlw = Math.max(maxlw, lw);
-      for (const it of ln) { it.cx = x + it.w / 2; it.cy = top + li * lh + lh / 2; x += it.w + space; }
+      let x = W / 2 - (left ? maxlw : lw) / 2;
+      for (const it of ln) { it.cx = x + it.w / 2; it.cy = y + lhs[li] / 2; x += it.w + space; }
+      y += lhs[li];
     });
-    return { items, box: [W / 2 - maxlw / 2, top, W / 2 + maxlw / 2, top + lh * lines.length], fs, cy };
+    return { items, box: [W / 2 - maxlw / 2, top, W / 2 + maxlw / 2, top + total], fs, cy };
   }
 
   function activeIndex(words, page, t) {
@@ -217,6 +225,7 @@ const DC = (() => {
 
     if (layer === "diff") {  // white text mask
       for (const g of glyphs) {
+        if (!wordDiff(st, g.it.em)) continue;
         ctx.font = fontStr(st, g.size, g.it.font); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
         ctx.globalAlpha = g.alpha; ctx.fillStyle = "#FFFFFF";
         ctx.fillText(g.it.text, g.x, g.y + baselineShift(st, g.size, g.it.font));
@@ -235,8 +244,9 @@ const DC = (() => {
         g.x + m.actualBoundingBoxRight + pad, by + m.actualBoundingBoxDescent + pad * 0.7, (st.boxRadius ?? 18) * k * ps * g.ws);
     }
 
+    const plain = glyphs.filter(g => !wordDiff(st, g.it.em)).sort((p, q) => p.isAct - q.isAct);
     const textPass = (c, color, dy, strokeColor) => {
-      for (const g of (diff ? [] : [...glyphs].sort((p, q) => p.isAct - q.isAct))) {
+      for (const g of plain) {
         c.font = fontStr(st, g.size, g.it.font); c.textAlign = "center"; c.textBaseline = "alphabetic";
         const y = g.y + dy + baselineShift(st, g.size, g.it.font), sw = Math.round(stroke * (color ? 1 : g.ws));
         c.globalAlpha = g.alpha;
@@ -249,7 +259,7 @@ const DC = (() => {
       c.globalAlpha = 1;
     };
 
-    if ((st.shadowOpacity || 0) > 0 && !diff && ctx.canvas.width > 0 && ctx.canvas.height > 0) {
+    if ((st.shadowOpacity || 0) > 0 && plain.length && ctx.canvas.width > 0 && ctx.canvas.height > 0) {
       const cw = ctx.canvas.width, ch = ctx.canvas.height;
       if (!shadowCanvas) shadowCanvas = document.createElement("canvas");
       if (shadowCanvas.width !== cw || shadowCanvas.height !== ch) { shadowCanvas.width = cw; shadowCanvas.height = ch; }
@@ -281,5 +291,25 @@ const DC = (() => {
     return pi;
   }
 
-  return { regroup, pages, draw, layout, loadFont, loadStyleFonts, displayText, activeIndex, preloadEmoji, isDiff, PAGE_IN, WORD_RISE };
+  // Negative-text preview without CSS blending (video overlays on some GPUs ignore mix-blend-mode):
+  // paints the video frame, inverted, only inside the caption's diff mask. ctx is in canvas pixels.
+  let negMask = null;
+  function paintNegative(ctx, video, project, t, W, H, pgs, redraw) {
+    const cw = ctx.canvas.width, ch = ctx.canvas.height;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cw, ch);
+    if (!isDiff(project.style) || !video || video.readyState < 2 || !cw || !ch) return false;
+    if (!negMask) negMask = document.createElement("canvas");
+    if (negMask.width !== cw || negMask.height !== ch) { negMask.width = cw; negMask.height = ch; }
+    const m = negMask.getContext("2d");
+    m.setTransform(1, 0, 0, 1, 0, 0); m.clearRect(0, 0, cw, ch);
+    m.setTransform(cw / W, 0, 0, ch / H, 0, 0);
+    if (draw(m, project, t, W, H, pgs, redraw, "diff") < 0) return false;
+    ctx.drawImage(video, 0, 0, cw, ch);
+    ctx.globalCompositeOperation = "difference"; ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, cw, ch);
+    ctx.globalCompositeOperation = "destination-in"; ctx.drawImage(negMask, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+    return true;
+  }
+
+  return { paintNegative, regroup, pages, draw, layout, loadFont, loadStyleFonts, displayText, activeIndex, preloadEmoji, isDiff, PAGE_IN, WORD_RISE };
 })();

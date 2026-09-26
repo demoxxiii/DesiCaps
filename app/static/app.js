@@ -120,8 +120,7 @@ function drawOverlay() {
   const t = video.currentTime;
   DC.draw(ctx, P, t, P.width, P.height, PGS, drawOverlay);
   if (cvd.width !== cv.width || cvd.height !== cv.height) { cvd.width = cv.width; cvd.height = cv.height; }
-  dctx.setTransform(1, 0, 0, 1, 0, 0); dctx.clearRect(0, 0, cvd.width, cvd.height);
-  if (DC.isDiff(P.style)) { dctx.setTransform(s, 0, 0, s, 0, 0); DC.draw(dctx, P, t, P.width, P.height, PGS, drawOverlay, "diff"); }
+  DC.paintNegative(dctx, video, P, t, P.width, P.height, PGS, drawOverlay);
   $("#timeLbl").textContent = fmt(t) + " / " + fmt(P.duration);
   markPlaying(t); drawPlayhead();
 }
@@ -356,11 +355,11 @@ const FORM = [
     ["font", "Font", "font"], ["size", "Size", "range", 30, 200, 1], ["uppercase", "UPPERCASE", "check"],
     ["lineHeight", "Line height", "range", 0.8, 1.6, 0.01], ["maxWidth", "Max width", "range", 0.4, 1, 0.01],
     ["posY", "Position Y", "range", 0.05, 0.95, 0.005], ["stripPunct", "Hide punctuation", "check"],
-    ["blend", "Negative text", "select", ["normal", "difference"]],
+    ["blend", "Negative text", "select", ["normal", "difference", "emph"]], ["align", "Align", "select", ["center", "left"]],
   ]],
   ["Accent font", [
     ["emphFont", "Emphasis font", "emphfont"], ["emphScale", "Emphasis size", "range", 0.6, 3, 0.05],
-    ["emphAuto", "Auto accent", "select", ["", "longest"]],
+    ["emphAuto", "Auto accent", "select", ["", "longest"]], ["emphLine", "Accent on own line", "check"],
   ]],
   ["Colours", [
     ["textColor", "Text", "color"], ["activeColor", "Active word", "color"], ["emph1", "Emphasis 1", "color"], ["emph2", "Emphasis 2", "color"],
@@ -421,7 +420,7 @@ function buildStyleForm() {
       else {
         input = document.createElement("select");
         const opts = type === "font" ? PRESETS.fonts : type === "emphfont" ? ["", ...PRESETS.fonts] : a;
-        for (const o of opts) input.add(new Option(o === "" ? "— none —" : o === "difference" ? "negative (difference)" : o === "longest" ? "longest word" : o.replace(/-Regular$/, ""), o));
+        for (const o of opts) input.add(new Option(o === "" ? "— none —" : o === "difference" ? "negative: all words" : o === "emph" ? "negative: accent words only" : o === "longest" ? "longest word" : o.replace(/-Regular$/, ""), o));
       }
       row.innerHTML = `<span>${label}</span>`; row.appendChild(input);
       if (type === "range") { const v = document.createElement("span"); v.className = "v"; row.appendChild(v); }

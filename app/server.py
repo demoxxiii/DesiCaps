@@ -360,9 +360,10 @@ async def premiere_overlay(pid: str, req: Request):
             dout = out[:-4] + "_NEGATIVE.mov"
             R.render_overlay(p, dout, W, H, fps, t0, end, layer="diff",
                              progress=lambda f: prog(f * 0.8, "Rendering negative text layer"))
-            has_normal = any(w.get("emoji") for w in p["words"]) or p["style"].get("pageBg")
+            has_normal = (p["style"].get("blend") == "emph" or p["style"].get("pageBg")
+                          or any(w.get("emoji") for w in p["words"]))
             if has_normal:
-                R.render_overlay(p, out, W, H, fps, t0, end, progress=lambda f: prog(0.8 + f * 0.2, "Rendering emoji layer"))
+                R.render_overlay(p, out, W, H, fps, t0, end, progress=lambda f: prog(0.8 + f * 0.2, "Rendering normal text layer"))
             return {"path": out if has_normal else None, "diffPath": dout}
         R.render_overlay(p, out, W, H, fps, t0, end, progress=lambda f: prog(f, "Rendering caption layer"))
         return {"path": out}

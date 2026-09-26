@@ -59,14 +59,15 @@ var DATA = __DATA__;
         if (!f.exists) { warnings.push("Missing emoji " + code); return null; }
         var it = proj.importFile(new ImportOptions(f)); it.parentFolder = assetFolder; emojiCache[code] = it; return it;
     }
-    var DIFF = S.blend === "difference";
-    function styleText(layer, txt, size, fillHex, fontName) {
+    var DIFF = S.blend === "difference", EMPHNEG = S.blend === "emph";
+    function styleText(layer, txt, size, fillHex, fontName, neg) {
+        var white = DIFF || neg;
         var tp = layer.property("ADBE Text Properties").property("ADBE Text Document");
         var td = tp.value;
         try { td.resetCharStyle(); td.resetParagraphStyle(); } catch (e) {}
         td.text = txt; td.font = fontName || S.font; td.fontSize = size; td.applyFill = true;
-        td.fillColor = hex(DIFF ? "#FFFFFF" : (fillHex || S.textColor));
-        if (STROKE > 0 && !DIFF) { td.applyStroke = true; td.strokeColor = hex(S.strokeColor); td.strokeWidth = STROKE * 2; td.strokeOverFill = false; }
+        td.fillColor = hex(white ? "#FFFFFF" : (fillHex || S.textColor));
+        if (STROKE > 0 && !white) { td.applyStroke = true; td.strokeColor = hex(S.strokeColor); td.strokeWidth = STROKE * 2; td.strokeOverFill = false; }
         else td.applyStroke = false;
         td.justification = ParagraphJustification.CENTER_JUSTIFY;
         tp.setValue(td);
@@ -104,7 +105,8 @@ var DATA = __DATA__;
         for (var wi = P.words.length - 1; wi >= 0; wi--) {  // add in reverse so first word ends on top
             var w = P.words[wi];
             var emF = (w.hl && S.emphFont) ? S.emphFont : null, emS = emF ? (S.emphScale || 1) : 1;
-            var L = pc.layers.addText(w.t); styleText(L, w.t, FS * emS, w.hl === 1 ? S.emph1 : w.hl === 2 ? S.emph2 : S.textColor, emF); L.name = w.t;
+            var L = pc.layers.addText(w.t); styleText(L, w.t, FS * emS, w.hl === 1 ? S.emph1 : w.hl === 2 ? S.emph2 : S.textColor, emF, EMPHNEG && w.hl); L.name = w.t;
+            if (EMPHNEG && w.hl) { try { L.blendingMode = BlendingMode.DIFFERENCE; } catch (e) {} }  // negative accent word
             var r = L.sourceRectAtTime(0, false);
             ws.unshift({ w: w, L: L, r: r, width: r.width - STROKE * 2 });
         }
@@ -205,6 +207,7 @@ var DATA = __DATA__;
         var PL = main.layers.add(pc);
         PL.startTime = P.start; PL.inPoint = P.start; PL.outPoint = P.end;
         if (DIFF) { try { PL.blendingMode = BlendingMode.DIFFERENCE; } catch (e) {} }  // negative text
+        if (EMPHNEG) { try { PL.collapseTransformation = true; } catch (e) {} }  // lets the accent words' Difference reach the video
         PL.moveBefore(ctrl); ctrl.moveToBeginning();
         var ptr = PL.property("ADBE Transform Group");
         ptr.property("ADBE Anchor Point").setValue([W / 2, CY]);
@@ -215,7 +218,7 @@ var DATA = __DATA__;
         if (pa === "bounce") { ptr.property("ADBE Scale").expression = U + "var v=u-1; var k=v*v*(4.2*v+3.2)+1; var s=(40+60*k); [s,s];"; ptr.property("ADBE Opacity").expression = U + "Math.min(1,u*4)*100;"; }
         if (pa === "slide") { ptr.property("ADBE Position").expression = U + "var e=1-Math.pow(1-u,3); value+[0,(1-e)*" + fmtf(FS * 0.6) + "];"; ptr.property("ADBE Opacity").expression = U + "(1-Math.pow(1-u,3))*100;"; }
         if (pa === "fade") { ptr.property("ADBE Opacity").expression = U + "(1-Math.pow(1-u,3))*100;"; }
-        if ((S.shadowOpacity || 0) > 0) {
+        if ((S.shadowOpacity || 0) > 0 && !EMPHNEG) {
             var ds = PL.property("ADBE Effect Parade").addProperty("ADBE Drop Shadow");
             ds.property("ADBE Drop Shadow-0001").setValue(hex(S.shadowColor));
             ds.property("ADBE Drop Shadow-0002").setValue(S.shadowOpacity * 255);

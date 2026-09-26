@@ -52,7 +52,9 @@
   "blend": "normal",
   "emphFont": "",
   "emphScale": 1.0,
-  "emphAuto": ""
+  "emphAuto": "",
+  "emphLine": false,
+  "align": "center"
  },
  "presets": [
   {
@@ -136,6 +138,60 @@
     "pageAnim": "pop",
     "wordAnim": "pop",
     "activeScale": 1.12
+   }
+  },
+  {
+   "id": "negative-mix",
+   "name": "Negative Mix",
+   "style": {
+    "font": "Poppins-Bold",
+    "size": 78,
+    "uppercase": false,
+    "textColor": "#FFFFFF",
+    "blend": "emph",
+    "emphFont": "ArchivoBlack-Regular",
+    "emphScale": 2.5,
+    "emphAuto": "longest",
+    "highlight": "none",
+    "stroke": 0,
+    "shadowOpacity": 0.45,
+    "shadowBlur": 10,
+    "shadowY": 2,
+    "wordAnim": "rise",
+    "pageAnim": "fade",
+    "wordsPerPage": 2,
+    "maxChars": 18,
+    "posY": 0.2,
+    "lineHeight": 0.92,
+    "maxWidth": 0.9,
+    "emoji": false,
+    "emphLine": true,
+    "align": "left"
+   }
+  },
+  {
+   "id": "negative-accent",
+   "name": "Negative Accent",
+   "style": {
+    "font": "Poppins-Bold",
+    "size": 70,
+    "uppercase": false,
+    "textColor": "#FFFFFF",
+    "blend": "emph",
+    "emphFont": "Poppins-Black",
+    "emphScale": 1.35,
+    "emphAuto": "longest",
+    "highlight": "none",
+    "stroke": 0,
+    "shadowOpacity": 0.55,
+    "shadowBlur": 10,
+    "shadowY": 3,
+    "wordAnim": "pop",
+    "pageAnim": "pop",
+    "wordsPerPage": 4,
+    "maxChars": 22,
+    "posY": 0.72,
+    "emoji": false
    }
   },
   {
